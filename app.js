@@ -11,9 +11,13 @@ const recentActivitiesRoutes = require("./src/routes/recentActivitiesRoutes.js")
 const { clerkMiddleware, requireAuth, getAuth } = require("@clerk/express");
 const cors = require("cors");
 const { clerkWebHook } = require("./src/utils/clerkWebhooks.js");
+const { neon } = require("@neondatabase/serverless");
 
 configDotenv();
 
+// .env variable
+const sql = neon(process.env.DATABASE_URL);
+const http = require("http");
 const app = express();
 const port = process.env.PORT;
 
@@ -25,14 +29,11 @@ app.use(clerkMiddleware());
 app.use(cookieParser());
 app.use(express.json());
 
-// Database connection
-checkConnection();
-
 // clerk webhook
 app.post(
   "/api/webhooks",
   express.raw({ type: "application/json" }),
-  clerkWebHook
+  clerkWebHook,
 );
 
 // Routers
@@ -60,7 +61,15 @@ app.get("/", (req, res) => {
   console.log(req.headers);
   return res.json({ isAuthenticated: auth.isAuthenticated });
 });
+
 // Start server
-app.listen(port, () => {
-  console.log(`Backend is listening on port ${port}`);
+const requestHandler = async (req, res) => {
+  const result = await sql`SELECT version()`;
+  const { version } = result[0];
+  res.writeHead(200, { "Content-Type": "text/plain" });
+  res.end(version);
+};
+
+http.createServer(requestHandler).listen(port, () => {
+  console.log("✅ Server running at neon");
 });

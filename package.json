@@ -5,15 +5,17 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon app.js",
+    "start": "node app.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "migrate": "npx sequelize-cli db:migrate",
-    "migrate:undo": "npx sequelize-cli db:migrate:undo"
+    "migrate": "pnpm exec sequelize-cli db:migrate",
+    "migrate:undo": "pnpm exec sequelize-cli db:migrate:undo"
   },
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
     "@clerk/express": "^1.7.54",
+    "@neondatabase/serverless": "^1.0.2",
     "@sequelize/postgres": "^7.0.0-alpha.47",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
