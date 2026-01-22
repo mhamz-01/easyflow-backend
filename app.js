@@ -70,6 +70,10 @@ const requestHandler = async (req, res) => {
   res.end(version);
 };
 
-http.createServer(requestHandler).listen(port, () => {
-  console.log("✅ Server running at neon");
+// http.createServer(requestHandler).listen(port, () => {
+//   console.log("✅ Server running at neon");
+// });
+
+app.listen(port, () => {
+  console.log(`Backend is listening on port ${port}`);
 });
