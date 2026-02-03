@@ -7,6 +7,4 @@ const createSlug = (value) => {
     .replace(/^-+|-+$/g, ""); // remove leading/trailing hyphens
 };
 
-const generateRandomColor = () => {};
-
 module.exports = { createSlug };

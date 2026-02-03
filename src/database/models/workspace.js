@@ -29,6 +29,16 @@ module.exports = (sequelize, DataTypes) => {
       Workspace.hasMany(models.WorkspaceMember, {
         foreignKey: "workspaceId",
       });
+      // Workspace => WorkspaceInvites
+      Workspace.hasMany(models.WorkspaceInvite, {
+        foreignKey: "workspaceId",
+      });
+
+      Workspace.belongsToMany(models.User, {
+        through: models.WorkspaceMember,
+        foreignKey: "workspaceId",
+        otherKey: "userId",
+      });
     }
   }
 
@@ -86,7 +96,7 @@ module.exports = (sequelize, DataTypes) => {
       tableName: "workspaces",
       timestamps: true,
       freezeTableName: true,
-    }
+    },
   );
 
   return Workspace;

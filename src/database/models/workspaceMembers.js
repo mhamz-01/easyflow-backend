@@ -8,6 +8,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "workspaceId",
         onDelete: "CASCADE",
       });
+      WorkspaceMember.belongsTo(models.User, {
+        foreignKey: "userId",
+        targetKey: "clerkId",
+      });
     }
   }
 
@@ -22,18 +26,21 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
-
       role: {
-        type: DataTypes.STRING,
+        type: DataTypes.ENUM("owner", "admin", "member"),
         allowNull: false,
         defaultValue: "member",
+      },
+      status: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: true,
       },
     },
     {
       sequelize,
       modelName: "WorkspaceMember",
       tableName: "workspaceMembers",
-    }
+    },
   );
 
   return WorkspaceMember;

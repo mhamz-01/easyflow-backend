@@ -65,7 +65,7 @@ const createWorkspace = async (req, res) => {
     if (existing) {
       console.log(
         "[Workspace] Workspace already exists for this user",
-        workspaceSlug
+        workspaceSlug,
       );
       return res.status(201).json({
         success: false,
@@ -170,7 +170,7 @@ const getSingleWorkspace = async (req, res) => {
     if (!workspace) {
       console.warn(
         "[getSingleWorkspace] workspace not found for slug:",
-        workspaceSlug
+        workspaceSlug,
       );
 
       return res.status(404).json({
@@ -181,7 +181,7 @@ const getSingleWorkspace = async (req, res) => {
 
     console.log(
       "[getSingleWorkspace] workspace found:",
-      workspace.id ?? "id-not-available"
+      workspace.id ?? "id-not-available",
     );
 
     return res.status(200).json({
@@ -226,7 +226,7 @@ const updateWorkspaceName = async (req, res) => {
         workspaceName: newWorkspaceName.toString(),
         workspaceSlug: newWorkspaceSlug,
       },
-      { where: { workspaceSlug: workspaceSlug.toString() }, returning: true }
+      { where: { workspaceSlug: workspaceSlug.toString() }, returning: true },
     );
 
     if (updatedCount === 0) {

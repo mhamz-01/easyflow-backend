@@ -20,6 +20,24 @@ const handleClerkUserCreated = async (clerkUser) => {
   await User.upsert(payload);
 };
 
+const getUserName = async (clerkId) => {
+  if (!clerkId) {
+    throw new Error("clerkId is required");
+  }
+
+  const user = await User.findOne({
+    where: { clerkId },
+    attributes: ["username"],
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return user.username;
+};
+
 module.exports = {
   handleClerkUserCreated,
+  getUserName,
 };
