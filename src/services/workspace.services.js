@@ -1,21 +1,21 @@
 const { Workspace } = require("../database/models");
 
-const getWorkspaceName = async (workspaceId) => {
+const getWorkspaceNameAndSlug = async (workspaceId) => {
   if (!workspaceId) {
     throw new Error("workspaceId is required");
   }
 
   const workspace = await Workspace.findByPk(workspaceId, {
-    attributes: ["workspaceName"],
+    attributes: ["workspaceName", "workspaceSlug"],
   });
 
   if (!workspace) {
     throw new Error("Workspace not found");
   }
 
-  return workspace.workspaceName;
+  return workspace;
 };
 
 module.exports = {
-  getWorkspaceName,
+  getWorkspaceNameAndSlug,
 };

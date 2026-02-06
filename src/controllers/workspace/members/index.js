@@ -9,6 +9,7 @@ const getWorkspaceMembers = async (req, res) => {
     include: [
       {
         model: User,
+        required: true,
       },
     ],
   });

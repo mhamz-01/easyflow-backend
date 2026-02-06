@@ -10,7 +10,9 @@ const {
   sendWorkspaceInviteEmail,
 } = require("../../../services/workspaceInviteEmail");
 const { Op } = require("sequelize");
-const { getWorkspaceName } = require("../../../services/workspace.services");
+const {
+  getWorkspaceNameAndSlug,
+} = require("../../../services/workspace.services");
 const {
   findWorkspaceInvite,
   isInviteActive,
@@ -88,19 +90,19 @@ const createInvite = async (req, res) => {
     }
 
     // ✅ Resolve human-readable values
-    const [workspaceName, inviterName] = await Promise.all([
-      getWorkspaceName(workspaceId),
+    const [workspace, inviterName] = await Promise.all([
+      getWorkspaceNameAndSlug(workspaceId),
       getUserName(userId),
     ]);
 
-    const inviteLink = `${process.env.ORIGIN}/accept-invitation/${token}?workspaceName=${workspaceName}&invitedBy=${inviterName}&role=${invite.role}`;
+    const inviteLink = `${process.env.ORIGIN}/accept-invitation/${token}?workspaceName=${workspace.workspaceName}&invitedBy=${inviterName}&role=${invite.role}&workspaceSlug=${workspace.workspaceSlug}`;
 
     // ✅ Send email (outside DB transaction, we don't want rollback if email fails)
     await sendWorkspaceInviteEmail({
       to: email,
       inviteLink,
       role: invite.role,
-      workspaceName,
+      workspaceName: workspace.workspaceName,
       createdBy: inviterName,
       expiresInDays: INVITE_EXPIRY_DAYS,
     });

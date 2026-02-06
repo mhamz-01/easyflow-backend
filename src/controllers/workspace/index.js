@@ -116,18 +116,20 @@ const getUserWorkspaces = async (req, res) => {
     const workspaces = await Workspace.findAll({
       where: {
         [Op.or]: [
-          { admin: userId }, // check if user is admin
+          { admin: userId }, // user is admin
+          { "$WorkspaceMembers.userId$": userId }, // user is a member
         ],
       },
       include: [
         {
           model: WorkspaceMember,
-          where: { userId },
-          required: false, // include only if exists
+          attributes: [], // optional: prevents extra data if you don’t need it
+          required: false, // LEFT JOIN (important)
         },
       ],
       order: [["createdAt", "DESC"]],
     });
+
     return res.status(200).json({
       success: true,
       data: workspaces,

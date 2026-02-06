@@ -49,10 +49,9 @@ const getAllDocs = async (req, res) => {
 
 const createDoc = async (req, res) => {
   try {
-    console.log("req.body", req.body);
     // validate body data
     const { workspaceId, projectId, createdBy } = createDocBodySchema.parse(
-      req.body
+      req.body,
     );
 
     // get primary_key for user using 'createdBy'

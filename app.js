@@ -8,10 +8,17 @@ const projectRoutes = require("./src/routes/projectRoutes.js");
 const docsRoutes = require("./src/routes/docsRoutes.js");
 const stickyNotesRoutes = require("./src/routes/stickyNotes.js");
 const recentActivitiesRoutes = require("./src/routes/recentActivitiesRoutes.js");
+const filesRoutes = require("./src/routes/filesRoute.js");
+const tasksRoutes = require("./src/routes/tasksRoutes.js");
+const errorHandler = require("./src/middlewares/errorHandler.js");
+
 const { clerkMiddleware, requireAuth, getAuth } = require("@clerk/express");
 const cors = require("cors");
 const { clerkWebHook } = require("./src/utils/clerkWebhooks.js");
 const { neon } = require("@neondatabase/serverless");
+
+// cron jobs
+require("./src/cron/cleanR2Files.js");
 
 configDotenv();
 
@@ -56,11 +63,12 @@ app.use("/api/stickyNotes", requireAuth(), stickyNotesRoutes);
 // recent activities route
 app.use("/api/recentActivities", requireAuth(), recentActivitiesRoutes);
 
-app.get("/", (req, res) => {
-  const auth = getAuth(req);
-  console.log(req.headers);
-  return res.json({ isAuthenticated: auth.isAuthenticated });
-});
+// Files route
+app.use("/api/files", requireAuth(), filesRoutes);
+
+app.use("/api/tasks", requireAuth(), tasksRoutes);
+
+app.use(errorHandler);
 
 // Start server
 const requestHandler = async (req, res) => {

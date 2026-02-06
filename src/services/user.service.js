@@ -1,3 +1,5 @@
+const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
+const r2Client = require("../config/r2");
 const { User } = require("../database/models");
 /**
  * Creates or updates a user from Clerk data
@@ -37,7 +39,35 @@ const getUserName = async (clerkId) => {
   return user.username;
 };
 
+const getUserIdUsingClerkId = async (clerkId) => {
+  if (!clerkId) {
+    throw new Error("ClerkId is required");
+  }
+  const user = await User.findOne({
+    where: { clerkId },
+    attributes: ["id"],
+  });
+
+  // throw error user not found
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return user.id;
+};
+
+const deleteR2FileUsingKey = async (fileKey) => {
+  await r2Client.send(
+    new DeleteObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: fileKey,
+    }),
+  );
+};
+
 module.exports = {
   handleClerkUserCreated,
   getUserName,
+  getUserIdUsingClerkId,
+  deleteR2FileUsingKey,
 };
