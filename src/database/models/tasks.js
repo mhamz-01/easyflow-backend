@@ -18,7 +18,7 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
-      title: {
+      name: {
         type: DataTypes.STRING,
         allowNull: false,
       },
@@ -90,7 +90,7 @@ module.exports = (sequelize) => {
       as: "creator",
     });
 
-    Task.belongsTo(models.File, {
+    Task.hasMany(models.File, {
       foreignKey: "taskId",
     });
     // Many-to-many with users (assignees)

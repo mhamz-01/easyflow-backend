@@ -9,7 +9,7 @@ const createTask = async (req, res, next) => {
     // get clerkId
     const { userId: clerkId } = getAuth(req);
 
-    const userId = getUserIdUsingClerkId(clerkId);
+    const userId = await getUserIdUsingClerkId(clerkId);
     // get created task
     const task = await taskService.createTask(taskData, userId);
 

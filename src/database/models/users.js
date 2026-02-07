@@ -44,6 +44,7 @@ module.exports = (sequelize, DataTypes) => {
     });
     User.hasMany(models.WorkspaceInvite, {
       foreignKey: "createdBy",
+      as: "createdTasks",
     });
     User.belongsToMany(models.Workspace, {
       through: models.WorkspaceMember,
@@ -53,6 +54,11 @@ module.exports = (sequelize, DataTypes) => {
     });
     User.hasMany(models.WorkspaceMember, {
       foreignKey: "userId",
+    });
+
+    User.hasMany(models.Task, {
+      foreignKey: "createdBy",
+      as: "assignedTasks",
     });
   };
 

@@ -13,6 +13,7 @@ class TaskService {
    * Create a new task
    */
   async createTask(taskData, createdByUserId) {
+    let taskId;
     const transaction = await sequelize.transaction();
 
     try {
@@ -59,7 +60,7 @@ class TaskService {
         {
           workspaceId: taskData.workspaceId,
           projectId: taskData.projectId,
-          name: taskData.title,
+          name: taskData.name,
           description: taskData.description,
           attachments: taskData.attachments,
           links: taskData.links,
@@ -72,19 +73,20 @@ class TaskService {
         { transaction },
       );
 
+      taskId = task.id; // ✅ Store the ID
+
       // Assign users to task
       if (taskData.assigneeIds && taskData.assigneeIds.length > 0) {
         await task.setAssignees(taskData.assigneeIds, { transaction });
       }
 
       await transaction.commit();
-
-      // Fetch complete task with associations
-      return await this.getTaskById(task.id, createdByUserId);
     } catch (error) {
       await transaction.rollback();
       throw error;
     }
+
+    return await this.getTaskById(taskId, createdByUserId);
   }
 
   /**
@@ -96,18 +98,18 @@ class TaskService {
         {
           model: User,
           as: "creator",
-          attributes: ["id", "email", "firstName", "lastName"],
+          attributes: ["id", "email", "username"],
         },
         {
           model: User,
           as: "assignees",
-          attributes: ["id", "email", "firstName", "lastName"],
+          attributes: ["id", "email", "username"],
           through: { attributes: [] },
         },
         {
           model: Workspace,
           as: "workspace",
-          attributes: ["id", "name"],
+          attributes: ["id", "workspaceName"],
         },
         {
           model: Project,
