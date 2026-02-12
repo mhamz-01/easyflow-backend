@@ -4,9 +4,10 @@ const {
   User,
   Workspace,
   Project,
+  TaskAssignee,
   sequelize,
 } = require("../database/models");
-const { NotFoundError, ValidationError } = require("../utils/AppError");
+const { NotFoundError } = require("../utils/AppError");
 
 class TaskService {
   /**
@@ -43,18 +44,6 @@ class TaskService {
         }
       }
 
-      // Validate assignees exist
-      if (taskData.assigneeIds && taskData.assigneeIds.length > 0) {
-        const users = await User.findAll({
-          where: { id: taskData.assigneeIds },
-          transaction,
-        });
-
-        if (users.length !== taskData.assigneeIds.length) {
-          throw new ValidationError("One or more assignees not found");
-        }
-      }
-
       // Create task
       const task = await Task.create(
         {
@@ -73,12 +62,21 @@ class TaskService {
         { transaction },
       );
 
-      taskId = task.id; // ✅ Store the ID
+      console.log(taskData.assignees);
+      // Assign users to the task
+      if (taskData.assignees.length > 0) {
+        const assignees = taskData.assignees.map((assigneeId) => ({
+          taskId: task.id,
+          userId: assigneeId,
+        }));
 
-      // Assign users to task
-      if (taskData.assigneeIds && taskData.assigneeIds.length > 0) {
-        await task.setAssignees(taskData.assigneeIds, { transaction });
+        const Taskassignees = await TaskAssignee.bulkCreate(assignees, {
+          transaction,
+        });
+        console.log("task assignees", Taskassignees);
       }
+
+      taskId = task.id; // ✅ Store the ID
 
       await transaction.commit();
     } catch (error) {
@@ -104,7 +102,6 @@ class TaskService {
           model: User,
           as: "assignees",
           attributes: ["id", "email", "username"],
-          through: { attributes: [] },
         },
         {
           model: Workspace,
