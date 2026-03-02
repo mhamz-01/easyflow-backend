@@ -20,7 +20,7 @@ const createTaskSchema = z.object({
   state: z.enum(["todo", "in progress", "done"]),
   priority: z.enum(["low", "medium", "high"]),
   assignees: z.array(z.number()).optional(),
-  startDate: z.string().optional(),
+  dueDate: z.string().optional(),
   attachedFilesId: z.array(z.number()).optional(),
 });
 

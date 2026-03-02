@@ -55,7 +55,7 @@ class TaskService {
           links: taskData.links,
           state: taskData.state,
           priority: taskData.priority,
-          startDate: taskData.startDate,
+          dueDate: taskData.dueDate,
           checklist: taskData.checklist,
           createdBy: createdByUserId,
         },

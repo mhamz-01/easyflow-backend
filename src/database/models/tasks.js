@@ -50,8 +50,8 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      startDate: {
-        type: DataTypes.DATE,
+      dueDate: {
+        type: DataTypes.STRING,
         allowNull: true,
       },
       checklist: {

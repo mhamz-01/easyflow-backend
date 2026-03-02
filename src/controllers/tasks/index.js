@@ -6,6 +6,7 @@ const { updateFilesById } = require("../../services/task.files.service");
 const createTask = async (req, res, next) => {
   try {
     const taskData = req.validatedData;
+    console.log("Validated data", taskData);
     // get clerkId
     const { userId: clerkId } = getAuth(req);
 
