@@ -16,20 +16,29 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "projectId",
         onDelete: "CASCADE",
       });
+      Project.belongsToMany(models.User, {
+        through: "PrivateProjectMembers",
+        foreignKey: "projectId",
+        as: "members",
+      });
     }
   }
   Project.init(
     {
       name: DataTypes.STRING,
       workspaceId: DataTypes.INTEGER,
-      members: DataTypes.STRING,
+      type: {
+        type: DataTypes.ENUM("public", "private"),
+        allowNull: false,
+        defaultValue: "public",
+      },
       admin: DataTypes.STRING,
       lead: DataTypes.STRING,
     },
     {
       sequelize,
       modelName: "Project",
-    }
+    },
   );
   return Project;
 };

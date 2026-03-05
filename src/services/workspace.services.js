@@ -1,5 +1,10 @@
 const { Workspace } = require("../database/models");
 
+const getWorkspaceBySlug = async (workspaceSlug) => {
+  return await Workspace.findOne({
+    where: { workspaceSlug },
+  });
+};
 const getWorkspaceNameAndSlug = async (workspaceId) => {
   if (!workspaceId) {
     throw new Error("workspaceId is required");
@@ -17,5 +22,6 @@ const getWorkspaceNameAndSlug = async (workspaceId) => {
 };
 
 module.exports = {
+  getWorkspaceBySlug,
   getWorkspaceNameAndSlug,
 };

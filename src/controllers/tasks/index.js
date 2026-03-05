@@ -1,5 +1,5 @@
 const { getAuth } = require("@clerk/express");
-const { getUserIdUsingClerkId } = require("../../services/user.service");
+const { getUserIdUsingClerkId } = require("../../services/auth/user.service");
 const taskService = require("../../services/tasks.service");
 const { updateFilesById } = require("../../services/task.files.service");
 

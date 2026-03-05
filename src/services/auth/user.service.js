@@ -1,6 +1,6 @@
 const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const r2Client = require("../config/r2");
-const { User } = require("../database/models");
+const r2Client = require("../../config/r2");
+const { User } = require("../../database/models");
 /**
  * Creates or updates a user from Clerk data
  * This function is idempotent

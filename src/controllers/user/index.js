@@ -1,5 +1,5 @@
 const { clerkClient, getAuth } = require("@clerk/express");
-const { handleClerkUserCreated } = require("../../services/user.service");
+const { handleClerkUserCreated } = require("../../services/auth/user.service");
 const { clerkUserSchema } = require("../../validators/clerk.validator");
 const { User, Workspace } = require("../../database/models");
 /**

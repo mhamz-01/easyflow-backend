@@ -5,7 +5,7 @@ const { File } = require("../../database/models");
 const {
   getUserIdUsingClerkId,
   deleteR2FileUsingKey,
-} = require("../../services/user.service");
+} = require("../../services/auth/user.service");
 const { getAuth } = require("@clerk/express");
 const r2Client = require("../../config/r2");
 

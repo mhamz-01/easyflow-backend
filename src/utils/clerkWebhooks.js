@@ -1,5 +1,5 @@
 const { verifyWebhook } = require("@clerk/express/webhooks");
-const { handleClerkUserCreated } = require("../services/user.service");
+const { handleClerkUserCreated } = require("../services/auth/user.service");
 
 const clerkWebHook = async (req, res) => {
   try {

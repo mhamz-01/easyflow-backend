@@ -1,5 +1,9 @@
+const { getAuth } = require("@clerk/express");
 const { Workspace, Project } = require("../../database/models");
 const { createProjectSchema } = require("./schemas");
+const { getUserIdUsingClerkId } = require("../../services/auth/user.service");
+const { getWorkspaceBySlug } = require("../../services/workspace.services");
+const { getProjectsForSidebar } = require("../../services/project.services");
 
 /**
  * Create a project using project name
@@ -46,6 +50,10 @@ const createProject = async (req, res) => {
 const getProjectsByWorkspaceSlug = async (req, res) => {
   try {
     const { slug: workspaceSlug } = req.query;
+    const { userId: clerkId } = getAuth(req);
+
+    // get user Id
+    const userId = await getUserIdUsingClerkId(clerkId);
 
     if (!workspaceSlug) {
       return res.status(400).json({
@@ -54,10 +62,7 @@ const getProjectsByWorkspaceSlug = async (req, res) => {
       });
     }
 
-    // Ensure workspace exists
-    const workspace = await Workspace.findOne({
-      where: { workspaceSlug },
-    });
+    const workspace = await getWorkspaceBySlug(workspaceSlug);
 
     if (!workspace) {
       return res.status(404).json({
@@ -65,11 +70,9 @@ const getProjectsByWorkspaceSlug = async (req, res) => {
         message: "Workspace not found",
       });
     }
-    // Fetch projects using workspace.id
-    const projects = await Project.findAll({
-      where: { workspaceId: workspace.id },
-      order: [["createdAt"]],
-    });
+
+    const projects = await getProjectsForSidebar(workspace.id, userId);
+
     return res.status(200).json({
       success: true,
       message: "Projects fetched successfully",
@@ -77,6 +80,7 @@ const getProjectsByWorkspaceSlug = async (req, res) => {
     });
   } catch (error) {
     console.error("[getProjectsByWorkspaceSlug]", error);
+
     return res.status(500).json({
       success: false,
       message: "Internal server error",

@@ -60,6 +60,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "createdBy",
       as: "assignedTasks",
     });
+    User.belongsToMany(models.Project, {
+      through: "PrivateProjectMembers",
+      foreignKey: "userId",
+      as: "privateProjects",
+    });
   };
 
   return User;

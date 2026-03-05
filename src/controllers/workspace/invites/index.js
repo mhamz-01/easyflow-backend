@@ -23,7 +23,7 @@ const {
   getInvitations,
   INVITE_EXPIRY_DAYS,
 } = require("../../../services/workspace.invites.services");
-const { getUserName } = require("../../../services/user.service");
+const { getUserName } = require("../../../services/auth/user.service");
 
 /**
  * Create invite
