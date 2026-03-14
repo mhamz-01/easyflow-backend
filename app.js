@@ -25,6 +25,7 @@ configDotenv();
 // .env variable
 const sql = neon(process.env.DATABASE_URL);
 const http = require("http");
+const attachUser = require("./src/middlewares/attachUser.js");
 const app = express();
 const port = process.env.PORT;
 
@@ -35,6 +36,7 @@ app.use(cors({ origin: process.env.ORIGIN, credentials: true }));
 app.use(clerkMiddleware());
 app.use(cookieParser());
 app.use(express.json());
+app.use(attachUser);
 
 // clerk webhook
 app.post(
@@ -66,21 +68,10 @@ app.use("/api/recentActivities", requireAuth(), recentActivitiesRoutes);
 // Files route
 app.use("/api/files", requireAuth(), filesRoutes);
 
-app.use("/api/tasks", requireAuth(), tasksRoutes);
+// Task route
+app.use("/api/projects/:projectId/tasks", requireAuth(), tasksRoutes);
 
 app.use(errorHandler);
-
-// Start server
-const requestHandler = async (req, res) => {
-  const result = await sql`SELECT version()`;
-  const { version } = result[0];
-  res.writeHead(200, { "Content-Type": "text/plain" });
-  res.end(version);
-};
-
-// http.createServer(requestHandler).listen(port, () => {
-//   console.log("✅ Server running at neon");
-// });
 
 app.listen(port, () => {
   console.log(`Backend is listening on port ${port}`);

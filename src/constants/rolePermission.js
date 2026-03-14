@@ -7,14 +7,15 @@ const rolePermissions = {
     "project:create",
     "project:update",
     "project:delete",
+    "task:read",
     "task:create",
     "task:update",
     "task:delete",
   ],
 
-  member: ["task:create", "task:update"],
+  member: ["task:read", "task:create", "task:update"],
 
-  viewer: ["task:view"],
+  viewer: ["task:read"],
 };
 
 module.exports = {

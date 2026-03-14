@@ -16,6 +16,12 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "projectId",
         onDelete: "CASCADE",
       });
+
+      // Project has many task
+      Project.hasMany(models.Task, {
+        foreignKey: "projectId",
+        onDelete: "CASCADE",
+      });
       Project.belongsToMany(models.User, {
         through: "PrivateProjectMembers",
         foreignKey: "projectId",
