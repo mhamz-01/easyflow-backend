@@ -25,7 +25,7 @@ configDotenv();
 // .env variable
 const sql = neon(process.env.DATABASE_URL);
 const http = require("http");
-const attachUser = require("./src/middlewares/attachUser.js");
+const attachUserAndWorkspaceId = require("./src/middlewares/attachUserAndWorkspaceId.js");
 const app = express();
 const port = process.env.PORT;
 
@@ -36,7 +36,7 @@ app.use(cors({ origin: process.env.ORIGIN, credentials: true }));
 app.use(clerkMiddleware());
 app.use(cookieParser());
 app.use(express.json());
-app.use(attachUser);
+app.use(attachUserAndWorkspaceId);
 
 // clerk webhook
 app.post(

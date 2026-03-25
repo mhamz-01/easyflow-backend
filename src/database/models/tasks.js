@@ -26,11 +26,6 @@ module.exports = (sequelize) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
-      attachments: {
-        type: DataTypes.JSONB,
-        allowNull: true,
-        defaultValue: [],
-      },
       links: {
         type: DataTypes.JSONB,
         allowNull: true,
@@ -92,6 +87,7 @@ module.exports = (sequelize) => {
 
     Task.hasMany(models.File, {
       foreignKey: "taskId",
+      as: "attachments",
     });
     // Many-to-many with users (assignees)
     Task.belongsToMany(models.User, {

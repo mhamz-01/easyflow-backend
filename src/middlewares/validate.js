@@ -5,8 +5,8 @@ const validate = (schema) => {
   return (req, res, next) => {
     try {
       console.log("body", req.body);
-      const validated = schema.parse(req.body);
-      req.validatedData = validated;
+      const body = schema.parse(req.body);
+      req.body = body;
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {

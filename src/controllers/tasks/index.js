@@ -1,20 +1,68 @@
-const { getAuth } = require("@clerk/express");
-const { getUserIdUsingClerkId } = require("../../services/auth/user.service");
 const { updateFilesById } = require("../../services/task.files.service");
 const taskService = require("../../services/tasks.service");
+const { sendSuccess } = require("../../utils");
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+const getTasks = async (req, res, next) => {
+  try {
+    const { workspaceId } = req;
+    const {
+      cursor,
+      limit,
+      state,
+      priority,
+      projectId,
+      assigneeId,
+      search,
+      dueBefore,
+      dueAfter,
+    } = req.query;
 
-const sendSuccess = (res, data, statusCode = 200, message = "Success") =>
-  res.status(statusCode).json({ success: true, message, data });
+    const result = await taskService.getAllTasks({
+      workspaceId,
+      filters: {
+        state,
+        priority,
+        projectId,
+        assigneeId,
+        search,
+        dueBefore,
+        dueAfter,
+      },
+      cursor: cursor ? parseInt(cursor) : null,
+      limit: parseInt(limit) || 20,
+    });
 
-// ─── Create ──────────────────────────────────────────────────────────────────
+    sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
 
+// ─── GET /workspaces/:workspaceId/tasks/:taskId ───────────────────────────────
+const getTask = async (req, res, next) => {
+  try {
+    const { workspaceId, taskId } = req.params;
+    const task = await taskService.getTaskById(
+      parseInt(taskId),
+      parseInt(workspaceId),
+    );
+    sendSuccess(res, task);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── POST /workspaces/:workspaceId/tasks ──────────────────────────────────────
 const createTask = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const taskData = req.validatedData;
-    const task = await taskService.createTask(taskData, userId);
+    const { workspaceId } = req.params;
+    const createdBy = req.user.id; // from auth middleware
+    const taskData = req.body;
+    const task = await taskService.createTask({
+      workspaceId: parseInt(workspaceId),
+      createdBy,
+      ...taskData,
+    });
 
     if (taskData.attachedFilesId?.length > 0) {
       await updateFilesById(taskData.attachedFilesId);
@@ -26,196 +74,57 @@ const createTask = async (req, res, next) => {
   }
 };
 
-// ─── Read ─────────────────────────────────────────────────────────────────────
-
-const getTask = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-
-    const task = await taskService.getTaskById(taskId, userId);
-
-    sendSuccess(res, task);
-  } catch (err) {
-    next(err);
-  }
-};
-
-const getProjectTasks = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const projectId = parseInt(req.params.projectId);
-    console.log("userid", "projectid", userId, projectId);
-    const result = await taskService.getTasksByProject(
-      projectId,
-      userId,
-      req.query,
-    );
-
-    sendSuccess(res, result);
-  } catch (err) {
-    next(err);
-  }
-};
-
-const getAssigneeTasks = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const assigneeId = parseInt(req.params.userId);
-    const workspaceId = parseInt(req.params.workspaceId);
-
-    const tasks = await taskService.getTasksByAssignee(
-      assigneeId,
-      workspaceId,
-      userId,
-      req.query,
-    );
-
-    sendSuccess(res, tasks);
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ─── Update ───────────────────────────────────────────────────────────────────
-
+// ─── PATCH /workspaces/:workspaceId/tasks/:taskId ─────────────────────────────
 const updateTask = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-
+    const { workspaceId } = req;
+    const { taskId } = req.params;
     const task = await taskService.updateTask(
-      taskId,
-      userId,
-      req.validatedData,
-    );
-
-    sendSuccess(res, task, 200, "Task updated successfully");
-  } catch (err) {
-    next(err);
-  }
-};
-
-const updateTaskState = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-    const { state } = req.body;
-
-    const task = await taskService.updateTaskState(taskId, userId, state);
-
-    sendSuccess(res, task, 200, "Task state updated");
-  } catch (err) {
-    next(err);
-  }
-};
-
-const updateTaskPriority = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-    const { priority } = req.body;
-
-    const task = await taskService.updateTaskPriority(taskId, userId, priority);
-
-    sendSuccess(res, task, 200, "Task priority updated");
-  } catch (err) {
-    next(err);
-  }
-};
-
-const addChecklistItem = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-
-    const task = await taskService.addChecklistItem(taskId, userId, req.body);
-
-    sendSuccess(res, task, 201, "Checklist item added");
-  } catch (err) {
-    next(err);
-  }
-};
-
-const updateChecklistItem = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-    const itemId = parseInt(req.params.itemId);
-
-    const task = await taskService.updateChecklistItem(
-      taskId,
-      userId,
-      itemId,
+      parseInt(taskId),
+      parseInt(workspaceId),
       req.body,
     );
 
-    sendSuccess(res, task, 200, "Checklist item updated");
+    res.json(task);
   } catch (err) {
     next(err);
   }
 };
 
-const removeChecklistItem = async (req, res, next) => {
-  try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-    const itemId = parseInt(req.params.itemId);
-
-    const task = await taskService.removeChecklistItem(taskId, userId, itemId);
-
-    sendSuccess(res, task, 200, "Checklist item removed");
-  } catch (err) {
-    next(err);
-  }
-};
-
-// ─── Delete ───────────────────────────────────────────────────────────────────
-
+// ─── DELETE /workspaces/:workspaceId/tasks/:taskId ────────────────────────────
 const deleteTask = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const taskId = parseInt(req.params.id);
-
-    await taskService.deleteTask(taskId, userId);
-
-    sendSuccess(res, null, 200, "Task deleted successfully");
+    const { workspaceId, taskId } = req.params;
+    await taskService.deleteTask(parseInt(taskId), parseInt(workspaceId));
+    res.status(204).send();
   } catch (err) {
     next(err);
   }
 };
 
-const deleteManyTasks = async (req, res, next) => {
+// ─── PATCH /workspaces/:workspaceId/tasks/:taskId/checklist ───────────────────
+const updateChecklist = async (req, res, next) => {
   try {
-    const userId = req.user.id;
-    const workspaceId = parseInt(req.params.workspaceId);
-    const { taskIds } = req.body;
+    const { workspaceId, taskId } = req.params;
+    const { checklist } = req.body;
 
-    await taskService.deleteManyTasks(taskIds, userId, workspaceId);
+    const updated = await taskService.updateChecklist(
+      parseInt(taskId),
+      parseInt(workspaceId),
+      checklist,
+    );
 
-    sendSuccess(res, null, 200, "Tasks deleted successfully");
+    res.json({ checklist: updated });
   } catch (err) {
     next(err);
   }
 };
-
-// ─── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
-  // Create
-  createTask,
-  // Read
+  getTasks,
   getTask,
-  getProjectTasks,
-  getAssigneeTasks,
-  // Update
+  createTask,
   updateTask,
-  updateTaskState,
-  updateTaskPriority,
-  addChecklistItem,
-  updateChecklistItem,
-  removeChecklistItem,
-  // Delete
   deleteTask,
-  deleteManyTasks,
+  updateChecklist,
 };

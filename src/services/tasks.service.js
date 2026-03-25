@@ -1,305 +1,177 @@
 const { Op } = require("sequelize");
-const db = require("../database/models");
+const { Task, User, Project, File } = require("../database/models");
 const { AppError } = require("../utils/AppError");
-const { getAuth } = require("@clerk/express");
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Reusable include config ──────────────────────────────────────────────────
+const TASK_INCLUDES = [
+  {
+    model: User,
+    as: "creator",
+    attributes: ["id", "username", "email"],
+  },
+  {
+    model: User,
+    as: "assignees",
+    attributes: ["id", "username", "email"],
+    through: { attributes: [] }, // hide junction table
+  },
+  {
+    model: File,
+    as: "attachments",
+    // attributes: [
+    //   "id",
+    //   "originalName",
+    //   "url",
+    //   "mimeType",
+    //   "size",
+    //   "previewUrl",
+    //   "createdAt",
+    // ],
+  },
+  {
+    model: Project,
+    as: "project",
+    attributes: ["id", "name"],
+  },
+];
 
-const getTaskOrThrow = async (taskId) => {
-  const task = await db.Task.findByPk(taskId, {
-    include: [
-      {
-        model: db.User,
-        as: "creator",
-        attributes: ["id", "username", "email"],
-      },
-      {
-        model: db.User,
-        as: "assignees",
-        attributes: ["id", "username", "email"],
-        through: { attributes: [] },
-      },
-      { model: db.Project, as: "project", attributes: ["id", "name"] },
-      {
-        model: db.File,
-        attributes: ["id", "originalName", "fileKey", "mimeType"],
-      },
-    ],
-  });
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-  if (!task) throw new AppError("Task not found", 404);
-  return task;
-};
+const buildFilters = ({
+  state,
+  priority,
+  projectId,
+  assigneeId,
+  search,
+  dueBefore,
+  dueAfter,
+}) => {
+  const where = {};
 
-const verifyWorkspaceMembership = async (clerkId, workspaceId) => {
-  const member = await db.WorkspaceMember.findOne({
-    where: { userId: clerkId, workspaceId },
-  });
-  if (!member) throw new AppError("Access denied: not a workspace member", 403);
-};
+  if (state) where.state = state;
+  if (priority) where.priority = priority;
+  if (projectId) where.projectId = projectId;
 
-// ─── Create ─────────────────────────────────────────────────────────────────
-
-const buildTaskPayload = (taskData, userId) => ({
-  workspaceId: taskData.workspaceId,
-  projectId: taskData.projectId ?? null,
-  name: taskData.name,
-  description: taskData.description ?? null,
-  attachments: taskData.attachments ?? [],
-  links: taskData.links ?? [],
-  state: taskData.state ?? "todo",
-  priority: taskData.priority ?? "medium",
-  dueDate: taskData.dueDate ?? null,
-  checklist: taskData.checklist ?? [],
-  createdBy: userId,
-});
-
-const assignUsersToTask = async (task, assigneeIds, transaction) => {
-  if (!assigneeIds?.length) return;
-  await task.setAssignees(assigneeIds, { transaction });
-};
-
-const createTask = async (taskData, userId) => {
-  const transaction = await db.sequelize.transaction();
-  try {
-    const task = await db.Task.create(buildTaskPayload(taskData, userId), {
-      transaction,
-    });
-    await assignUsersToTask(task, taskData.assigneeIds, transaction);
-    await transaction.commit();
-    return getTaskOrThrow(task.id);
-  } catch (err) {
-    await transaction.rollback();
-    throw err;
+  if (search) {
+    where[Op.or] = [
+      { name: { [Op.iLike]: `%${search}%` } },
+      { description: { [Op.iLike]: `%${search}%` } },
+    ];
   }
-};
 
-// ─── Read ────────────────────────────────────────────────────────────────────
-
-const getTaskById = async (taskId, userId) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-  return task;
-};
-
-const buildTaskFilters = (query) => {
-  const where = { workspaceId: query.workspaceId };
-
-  if (query.projectId) where.projectId = query.projectId;
-  if (query.state) where.state = query.state;
-  if (query.priority) where.priority = query.priority;
-  if (query.search) where.name = { [Op.iLike]: `%${query.search}%` };
-  if (query.dueDate) where.dueDate = query.dueDate;
-  if (query.createdBy) where.createdBy = query.createdBy;
+  if (dueBefore || dueAfter) {
+    where.dueDate = {};
+    if (dueBefore) where.dueDate[Op.lte] = dueBefore;
+    if (dueAfter) where.dueDate[Op.gte] = dueAfter;
+  }
 
   return where;
 };
 
-const getTasksByProject = async (projectId) => {
-  const project = await db.Project.findByPk(projectId);
-  if (!project) throw new AppError("Project not found", 404);
+// ─── Service Methods ──────────────────────────────────────────────────────────
 
-  const tasks = await db.Task.findAll({
-    where: { projectId },
-    attributes: ["name", "priority", "state", "dueDate"],
-    order: [["createdAt", "DESC"]],
-    include: [
-      {
-        model: db.User,
-        as: "assignees",
-        attributes: ["id", "username", "imageUrl"],
-        through: { attributes: [] },
-      },
-    ],
-  });
-  return tasks;
-};
-
-const getTasksByAssignee = async (
-  assigneeId,
+const getAllTasks = async ({
   workspaceId,
-  userId,
-  query = {},
-) => {
-  await verifyWorkspaceMembership(userId, workspaceId);
+  filters = {},
+  cursor = null, // last task id from previous page
+  limit = 5,
+}) => {
+  const where = { workspaceId, ...buildFilters(filters) };
 
-  const assignee = await db.User.findByPk(assigneeId, {
-    include: [
-      {
-        model: db.Task,
-        as: "assignedTasks",
-        where: buildTaskFilters({ ...query, workspaceId }),
-        include: [
-          {
-            model: db.User,
-            as: "creator",
-            attributes: ["id", "name", "email"],
-          },
-          { model: db.Project, as: "project", attributes: ["id", "name"] },
-        ],
-        ...getPaginationOptions(query),
-      },
-    ],
+  // If cursor provided, only fetch tasks older than it
+  if (cursor) {
+    where.id = { [Op.lt]: cursor };
+  }
+
+  const include = filters.assigneeId
+    ? TASK_INCLUDES.map((inc) =>
+        inc.as === "assignees"
+          ? { ...inc, where: { id: filters.assigneeId }, required: true }
+          : inc,
+      )
+    : TASK_INCLUDES;
+
+  const tasks = await Task.findAll({
+    where,
+    include,
+    limit: limit + 1, // fetch one extra to know if more exist
+    order: [["id", "DESC"]], // id is faster than createdAt for cursor pagination
+    distinct: true,
   });
 
-  if (!assignee) throw new AppError("User not found", 404);
-  return assignee.assignedTasks ?? [];
+  const hasMore = tasks.length > limit;
+  if (hasMore) tasks.pop(); // remove the extra item
+
+  const nextCursor = hasMore ? tasks[tasks.length - 1].id : null;
+
+  return {
+    tasks,
+    pagination: {
+      nextCursor,
+      hasMore,
+      limit,
+    },
+  };
 };
 
-// ─── Update ──────────────────────────────────────────────────────────────────
+const getTaskById = async (taskId, workspaceId) => {
+  const task = await Task.findOne({
+    where: { id: taskId, workspaceId },
+    include: TASK_INCLUDES,
+  });
 
-const UPDATABLE_FIELDS = [
-  "name",
-  "description",
-  "state",
-  "priority",
-  "dueDate",
-  "checklist",
-  "links",
-  "attachments",
-  "projectId",
-];
-
-const pickUpdatableFields = (data) =>
-  UPDATABLE_FIELDS.reduce((acc, field) => {
-    if (data[field] !== undefined) acc[field] = data[field];
-    return acc;
-  }, {});
-
-const updateTaskFields = async (task, data, transaction) => {
-  const updates = pickUpdatableFields(data);
-  if (Object.keys(updates).length) {
-    await task.update(updates, { transaction });
-  }
-};
-
-const updateTaskAssignees = async (task, assigneeIds, transaction) => {
-  if (assigneeIds === undefined) return;
-  await task.setAssignees(assigneeIds, { transaction });
-};
-
-const updateTask = async (taskId, userId, data) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-
-  const transaction = await db.sequelize.transaction();
-  try {
-    await updateTaskFields(task, data, transaction);
-    await updateTaskAssignees(task, data.assigneeIds, transaction);
-    await transaction.commit();
-    return getTaskOrThrow(taskId);
-  } catch (err) {
-    await transaction.rollback();
+  if (!task) {
+    const err = new Error("Task not found");
+    err.status = 404;
     throw err;
   }
+
+  return task;
 };
 
-const updateTaskState = async (taskId, userId, state) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-  await task.update({ state });
-  return getTaskOrThrow(taskId);
-};
+const createTask = async ({
+  workspaceId,
+  createdBy,
+  assigneeIds = [],
+  ...fields
+}) => {
+  const task = await Task.create({ workspaceId, createdBy, ...fields });
 
-const updateTaskPriority = async (taskId, userId, priority) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-  await task.update({ priority });
-  return getTaskOrThrow(taskId);
-};
-
-const updateChecklistItem = async (taskId, userId, itemId, updates) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-
-  const checklist = task.checklist.map((item) =>
-    item.id === itemId ? { ...item, ...updates } : item,
-  );
-
-  await task.update({ checklist });
-  return getTaskOrThrow(taskId);
-};
-
-const addChecklistItem = async (taskId, userId, item) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-
-  const checklist = [
-    ...(task.checklist ?? []),
-    { id: Date.now(), ...item, completed: false },
-  ];
-  await task.update({ checklist });
-  return getTaskOrThrow(taskId);
-};
-
-const removeChecklistItem = async (taskId, userId, itemId) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-
-  const checklist = task.checklist.filter((item) => item.id !== itemId);
-  await task.update({ checklist });
-  return getTaskOrThrow(taskId);
-};
-
-// ─── Delete ──────────────────────────────────────────────────────────────────
-
-const deleteTask = async (taskId, userId) => {
-  const task = await getTaskOrThrow(taskId);
-  await verifyWorkspaceMembership(userId, task.workspaceId);
-
-  const transaction = await db.sequelize.transaction();
-  try {
-    await task.setAssignees([], { transaction });
-    await db.File.destroy({ where: { taskId }, transaction });
-    await task.destroy({ transaction });
-    await transaction.commit();
-  } catch (err) {
-    await transaction.rollback();
-    throw err;
+  if (assigneeIds.length > 0) {
+    await task.setAssignees(assigneeIds);
   }
+
+  return getTaskById(task.id, workspaceId);
 };
 
-const deleteManyTasks = async (taskIds, userId, workspaceId) => {
-  await verifyWorkspaceMembership(userId, workspaceId);
+const updateTask = async (taskId, workspaceId, { assigneeIds, ...fields }) => {
+  const task = await getTaskById(taskId, workspaceId); // throws 404 if not found
 
-  const transaction = await db.sequelize.transaction();
-  try {
-    await db.sequelize.query(
-      `DELETE FROM "taskAssignees" WHERE "taskId" IN (:taskIds)`,
-      { replacements: { taskIds }, transaction },
-    );
-    await db.File.destroy({
-      where: { taskId: { [Op.in]: taskIds } },
-      transaction,
-    });
-    await db.Task.destroy({
-      where: { id: { [Op.in]: taskIds }, workspaceId },
-      transaction,
-    });
-    await transaction.commit();
-  } catch (err) {
-    await transaction.rollback();
-    throw err;
+  await task.update(fields);
+
+  if (assigneeIds !== undefined) {
+    await task.setAssignees(assigneeIds); // replaces all assignees
   }
+
+  return getTaskById(taskId, workspaceId);
 };
 
-// ─── Exports ─────────────────────────────────────────────────────────────────
+const deleteTask = async (taskId, workspaceId) => {
+  const task = await getTaskById(taskId, workspaceId); // throws 404 if not found
+  await task.destroy();
+};
+
+const updateChecklist = async (taskId, workspaceId, checklist) => {
+  const task = await getTaskById(taskId, workspaceId);
+  await task.update({ checklist });
+  return task.checklist;
+};
 
 module.exports = {
-  // Create
-  createTask,
-  // Read
+  getAllTasks,
   getTaskById,
-  getTasksByProject,
-  getTasksByAssignee,
-  // Update
+  createTask,
   updateTask,
-  updateTaskState,
-  updateTaskPriority,
-  updateChecklistItem,
-  addChecklistItem,
-  removeChecklistItem,
-  // Delete
   deleteTask,
-  deleteManyTasks,
+  updateChecklist,
 };
