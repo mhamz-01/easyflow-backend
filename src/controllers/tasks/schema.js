@@ -29,7 +29,7 @@ const createTaskSchema = z.object({
   checklist: z.array(checklistItemSchema).optional(),
   state: taskState,
   priority: taskPriority,
-  assignees: z.array(positiveInt).optional(),
+  assigneeIds: z.array(positiveInt).optional(),
   dueDate: z.string().optional(),
   attachedFilesId: z.array(positiveInt).optional(),
 });

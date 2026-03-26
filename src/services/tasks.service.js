@@ -150,7 +150,7 @@ const updateTask = async (taskId, workspaceId, { assigneeIds, ...fields }) => {
   await task.update(fields);
 
   if (assigneeIds !== undefined) {
-    await task.setAssignees(assigneeIds); // replaces all assignees
+    await task.setAssignees(assigneeIds);
   }
 
   return getTaskById(taskId, workspaceId);
