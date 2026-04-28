@@ -6,11 +6,13 @@ const workspaceRoutes = require("./src/routes/workspaceRoutes.js");
 const userRoutes = require("./src/routes/userRoutes.js");
 const projectRoutes = require("./src/routes/projectRoutes.js");
 const docsRoutes = require("./src/routes/docsRoutes.js");
+const whiteboardRoute = require("./src/routes/whiteboardRoutes.js");
 const stickyNotesRoutes = require("./src/routes/stickyNotes.js");
 const recentActivitiesRoutes = require("./src/routes/recentActivitiesRoutes.js");
 const filesRoutes = require("./src/routes/filesRoute.js");
 const tasksRoutes = require("./src/routes/tasksRoutes.js");
 const errorHandler = require("./src/middlewares/errorHandler.js");
+
 
 const { clerkMiddleware, requireAuth, getAuth } = require("@clerk/express");
 const cors = require("cors");
@@ -58,6 +60,9 @@ app.use("/api/project", requireAuth(), projectRoutes);
 
 // docs route
 app.use("/api/docs", requireAuth(), docsRoutes);
+
+// whiteboard route 
+app.use("/api/whiteboards",  requireAuth(), whiteboardRoute);
 
 // sticky notes route
 app.use("/api/stickyNotes", requireAuth(), stickyNotesRoutes);
