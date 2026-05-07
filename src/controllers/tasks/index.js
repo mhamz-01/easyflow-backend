@@ -1,3 +1,4 @@
+const { sequelize } = require("../../database/models");
 const { updateFilesById } = require("../../services/task.files.service");
 const taskService = require("../../services/tasks.service");
 const { sendSuccess } = require("../../utils");
@@ -41,7 +42,9 @@ const getTasks = async (req, res, next) => {
 // ─── GET /workspaces/:workspaceId/tasks/:taskId ───────────────────────────────
 const getTask = async (req, res, next) => {
   try {
-    const { workspaceId, taskId } = req.params;
+    const { workspaceId } = req;
+    const { taskId } = req.params;
+    console.log("workspaceId, taskdId", workspaceId, taskId);
     const task = await taskService.getTaskById(
       parseInt(taskId),
       parseInt(workspaceId),
@@ -54,22 +57,35 @@ const getTask = async (req, res, next) => {
 
 // ─── POST /workspaces/:workspaceId/tasks ──────────────────────────────────────
 const createTask = async (req, res, next) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const { workspaceId } = req.params;
-    const createdBy = req.user.id; // from auth middleware
+    const createdBy = req.user.id;
     const taskData = req.body;
-    const task = await taskService.createTask({
-      workspaceId: parseInt(workspaceId),
-      createdBy,
-      ...taskData,
-    });
 
-    if (taskData.attachedFilesId?.length > 0) {
-      await updateFilesById(taskData.attachedFilesId);
+    const { assignees = [], attachedFilesId = [], ...rest } = taskData;
+
+    const task = await taskService.createTask(
+      {
+        workspaceId: Number(workspaceId),
+        createdBy,
+        assignees,
+        ...rest,
+      },
+      transaction,
+    );
+
+    console.log("attached files id", attachedFilesId);
+    if (attachedFilesId.length > 0) {
+      await updateFilesById(attachedFilesId, task.id, transaction);
     }
+
+    await transaction.commit();
 
     sendSuccess(res, task, 201, "Task created successfully");
   } catch (err) {
+    await transaction.rollback();
     next(err);
   }
 };

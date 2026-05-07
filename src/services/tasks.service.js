@@ -7,12 +7,12 @@ const TASK_INCLUDES = [
   {
     model: User,
     as: "creator",
-    attributes: ["id", "username", "email"],
+    attributes: ["id", "username", "email", "imageUrl"],
   },
   {
     model: User,
     as: "assignees",
-    attributes: ["id", "username", "email"],
+    attributes: ["id", "username", "email", "imageUrl"],
     through: { attributes: [] }, // hide junction table
   },
   {
@@ -129,21 +129,25 @@ const getTaskById = async (taskId, workspaceId) => {
   return task;
 };
 
+// Service
 const createTask = async ({
   workspaceId,
   createdBy,
-  assigneeIds = [],
-  ...fields
+  assignees = [],
+  ...rest
 }) => {
-  const task = await Task.create({ workspaceId, createdBy, ...fields });
+  const task = await Task.create({
+    workspaceId,
+    createdBy,
+    ...rest,
+  });
 
-  if (assigneeIds.length > 0) {
-    await task.setAssignees(assigneeIds);
+  if (Array.isArray(assignees) && assignees.length > 0) {
+    await task.setAssignees(assignees);
   }
 
   return getTaskById(task.id, workspaceId);
 };
-
 const updateTask = async (taskId, workspaceId, { assigneeIds, ...fields }) => {
   const task = await getTaskById(taskId, workspaceId); // throws 404 if not found
 

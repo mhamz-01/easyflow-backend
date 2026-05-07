@@ -11,13 +11,9 @@ const r2Client = require("../../config/r2");
 
 const createPresignedUrl = async (req, res) => {
   try {
-    const { fileName, fileType, fileSize, workspaceId } = req.body;
-
-    // get user clerkId
-    const { userId: clerkId } = getAuth(req);
-
-    // get userId using clerkId
-    const userId = await getUserIdUsingClerkId(clerkId);
+    const { workspaceId } = req;
+    const { id: userId } = req.user;
+    const { fileName, fileType, fileSize } = req.body;
 
     // ✅ validations
     if (!fileName || !fileType || !fileSize) {
