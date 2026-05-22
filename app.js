@@ -33,48 +33,50 @@ const port = process.env.PORT;
 
 // cors
 app.use(cors({ origin: process.env.ORIGIN, credentials: true }));
-
 // Middlewares
 app.use(clerkMiddleware());
 app.use(cookieParser());
 app.use(express.json());
-app.use(attachUserAndWorkspaceId);
+
+
+// app.use(attachUserAndWorkspaceId);
 
 // clerk webhook
-app.post(
-  "/api/webhooks",
-  express.raw({ type: "application/json" }),
-  clerkWebHook,
-);
+app.post("/api/webhooks/clerk", express.raw({ type: "application/json" }), clerkWebHook);
+
+
+
+
+
 
 // Routers
 
 // user route
-app.use("/api/users", requireAuth(), userRoutes);
+app.use("/api/users", requireAuth(),attachUserAndWorkspaceId, userRoutes);
 
 // workspace route
-app.use("/api/workspace", requireAuth(), workspaceRoutes);
+app.use("/api/workspace", requireAuth(),attachUserAndWorkspaceId, workspaceRoutes);
 
 // project route
-app.use("/api/project", requireAuth(), projectRoutes);
+app.use("/api/project", requireAuth(),attachUserAndWorkspaceId, projectRoutes);
 
 // docs route
-app.use("/api/docs", requireAuth(), docsRoutes);
+app.use("/api/docs", requireAuth(),attachUserAndWorkspaceId, docsRoutes);
 
 // whiteboard route 
-app.use("/api/whiteboards",  requireAuth(), whiteboardRoute);
+app.use("/api/whiteboards",  requireAuth(),attachUserAndWorkspaceId, whiteboardRoute);
 
 // sticky notes route
-app.use("/api/stickyNotes", requireAuth(), stickyNotesRoutes);
+app.use("/api/stickyNotes", requireAuth(),attachUserAndWorkspaceId, stickyNotesRoutes);
 
 // recent activities route
-app.use("/api/recentActivities", requireAuth(), recentActivitiesRoutes);
+app.use("/api/recentActivities", requireAuth(),attachUserAndWorkspaceId, recentActivitiesRoutes);
 
 // Files route
-app.use("/api/files", requireAuth(), filesRoutes);
+app.use("/api/files", requireAuth(),attachUserAndWorkspaceId, filesRoutes);
 
 // Task route
-app.use("/api/projects/:projectId/tasks", requireAuth(), tasksRoutes);
+app.use("/api/projects/:projectId/tasks", requireAuth(),attachUserAndWorkspaceId, tasksRoutes);
 
 app.use(errorHandler);
 

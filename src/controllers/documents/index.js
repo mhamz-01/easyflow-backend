@@ -1,10 +1,7 @@
-const {
-  getAllDocSchema,
-  createDocBodySchema,
-  validateId,
-  updateDocSchema,
-} = require("./schema");
+const { getAllDocSchema, createDocBodySchema, validateId, updateDocSchema } = require("./schema");
 const { Document, User } = require("../../database/models");
+const { sendAssignmentEmail } = require("../../services/sendAssignmentEmail");
+
 
 const getSingleDoc = async (req, res) => {
   // validate query
@@ -24,35 +21,46 @@ const getSingleDoc = async (req, res) => {
     document,
   });
 };
+
+const { extractDocPreview } = require("../../utils/extractDocPreview");
+
 const getAllDocs = async (req, res) => {
   try {
-    // Validate & transform
-    const validatedData = getAllDocSchema.parse(req.query);
-    const { projectId, workspaceId } = validatedData;
-    // Fetch docs from database (replace with your ORM/Sequelize call)
+    const { projectId, workspaceId } = getAllDocSchema.parse(req.query);
+
     const docs = await Document.findAll({
       where: { projectId, workspaceId },
-      attributes: ["id", "documentName", "assignees"],
+      attributes: [
+        "id",
+        "documentName",
+        "isPrivate",
+        "createdBy",
+        "createdDate",
+        "assignees",
+        "content", // ✅ needed for preview extraction
+      ],
     });
-    res.status(200).json({
-      success: true,
-      docs,
+
+    const result = docs.map((doc) => {
+      const plain = doc.toJSON();
+      return {
+        ...plain,
+        preview: extractDocPreview(plain.content), // ✅ extracted preview
+        content: undefined, // ✅ don't expose full content in listing
+      };
     });
+
+    res.status(200).json({ success: true, docs: result });
   } catch (error) {
     console.error(error);
-    res.status(400).json({
-      success: false,
-      error: error.message || "Invalid request",
-    });
+    res.status(400).json({ success: false, error: error.message });
   }
 };
 
 const createDoc = async (req, res) => {
   try {
     // validate body data
-    const { workspaceId, projectId, createdBy } = createDocBodySchema.parse(
-      req.body,
-    );
+    const { workspaceId, projectId, createdBy, documentName,isPrivate } = createDocBodySchema.parse(req.body);
 
     // get primary_key for user using 'createdBy'
     const user = await User.findOne({
@@ -72,6 +80,8 @@ const createDoc = async (req, res) => {
       workspaceId,
       projectId,
       createdBy: userPrimaryId,
+      documentName,
+      isPrivate: isPrivate ?? false,
       createdDate: Date.now(),
     });
 
@@ -144,4 +154,63 @@ const deleteDoc = async (req, res) => {
   }
 };
 
-module.exports = { getAllDocs, createDoc, getSingleDoc, updateDoc, deleteDoc };
+
+const assignDoc = async (req, res) => {
+  try {
+    const { docId, memberIds } = req.body; // memberIds: number[]
+
+    if (!docId || !memberIds?.length) {
+      return res.status(400).json({
+        success: false,
+        message: "docId and memberIds are required",
+      });
+    }
+
+    // find the doc
+    const doc = await Document.findByPk(docId);
+    if (!doc) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    // find assigner
+    const assigner = await User.findByPk(doc.createdBy, {
+      attributes: ["username"],
+    });
+
+    // merge with existing assignees — no duplicates
+    const existing = doc.assignees ?? [];
+    const merged = [...new Set([...existing, ...memberIds])];
+    await doc.update({ assignees: merged });
+
+    // fetch emails of newly added members only
+    const newMemberIds = memberIds.filter((id) => !existing.includes(id));
+    const newMembers = await User.findAll({
+      where: { id: newMemberIds },
+      attributes: ["id", "email", "username"],
+    });
+
+    // send email to each new assignee
+    const docLink = `${process.env.ORIGIN}/docs/${docId}`;
+    await Promise.all(
+      newMembers.map((member) =>
+        sendAssignmentEmail({
+          to: member.email,
+          itemName: doc.documentName,
+          itemType: "document",       // ✅
+          assignedBy: assigner?.username ?? "Someone",
+          itemLink: `${process.env.ORIGIN}/docs/${docId}`,
+        }),
+      ),
+    );
+
+    return res.status(200).json({
+      success: true,
+      assignees: merged,
+    });
+  } catch (error) {
+    console.error("Assign doc error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = { getAllDocs, createDoc, getSingleDoc, updateDoc, deleteDoc, assignDoc };

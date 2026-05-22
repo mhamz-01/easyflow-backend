@@ -10,7 +10,7 @@ const getAllWhiteboardsSchema = z.object({
 });
 
 const updateWhiteboardSchema = z.object({
-  id: z.number(),
+  id: z.coerce.number(),
   columnName: z.string(),
   value: z.union([
     z.string(),
@@ -25,6 +25,8 @@ const createWhiteboardBodySchema = z.object({
   workspaceId: z.number(),
   projectId: z.number(),
   createdBy: z.string(),
+  whiteboardName:z.string().optional(),
+  isPrivate: z.boolean().optional().default(false),
 });
 
 module.exports = {

@@ -6,12 +6,12 @@ const { sendSuccess } = require("../../utils");
 const getTasks = async (req, res, next) => {
   try {
     const { workspaceId } = req;
+    const { projectId } = req.params; // ✅ get from params, not query
     const {
       cursor,
       limit,
       state,
       priority,
-      projectId,
       assigneeId,
       search,
       dueBefore,
@@ -23,7 +23,7 @@ const getTasks = async (req, res, next) => {
       filters: {
         state,
         priority,
-        projectId,
+        projectId, // ✅ now correctly passed
         assigneeId,
         search,
         dueBefore,
@@ -108,9 +108,11 @@ const updateTask = async (req, res, next) => {
 };
 
 // ─── DELETE /workspaces/:workspaceId/tasks/:taskId ────────────────────────────
+// ✅ Fix — get workspaceId from req, taskId from params (same pattern as updateTask)
 const deleteTask = async (req, res, next) => {
   try {
-    const { workspaceId, taskId } = req.params;
+    const { workspaceId } = req;        // ✅ from attachUser middleware
+    const { taskId } = req.params;      // ✅ from URL
     await taskService.deleteTask(parseInt(taskId), parseInt(workspaceId));
     res.status(204).send();
   } catch (err) {

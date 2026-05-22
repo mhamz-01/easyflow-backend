@@ -5,7 +5,9 @@ const {
   getSingleWhiteboard,
   deleteWhiteboard,
   updateWhiteboard,
+  assignWhiteboard
 } = require("../controllers/whiteboards");
+
 
 const router = express.Router();
 
@@ -21,5 +23,8 @@ router.put("/update", updateWhiteboard);
 
 // DELETE Method
 router.delete("/delete", deleteWhiteboard);
+
+// ASSIGN Whiteboard Method
+router.post("/assign", assignWhiteboard);
 
 module.exports = router;

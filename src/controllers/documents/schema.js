@@ -12,7 +12,7 @@ const getAllDocSchema = z.object({
 
 // update doc schema
 const updateDocSchema = z.object({
-  id: z.number(),
+  id: z.coerce.number(),
   columnName: z.string(),
   value: z.union([
     z.string(),
@@ -27,6 +27,8 @@ const createDocBodySchema = z.object({
   workspaceId: z.number(),
   projectId: z.number(),
   createdBy: z.string(),
+  documentName: z.string().optional(),
+  isPrivate: z.boolean().optional().default(false),
 });
 module.exports = {
   getAllDocSchema,

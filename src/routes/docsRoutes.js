@@ -5,7 +5,9 @@ const {
   getSingleDoc,
   deleteDoc,
   updateDoc,
+  assignDoc
 } = require("../controllers/documents");
+
 
 const router = express.Router();
 
@@ -21,4 +23,7 @@ router.put("/update", updateDoc);
 
 // DELETE Method
 router.delete("/delete", deleteDoc);
+
+// Assgin Method
+router.post("/assign", assignDoc);
 module.exports = router;
