@@ -64,25 +64,32 @@ const createTask = async (req, res, next) => {
     const createdBy = req.user.id;
     const taskData = req.body;
 
-    const { assignees = [], attachedFilesId = [], ...rest } = taskData;
+    const {
+      assignees = [],
+      attachedFilesId = [],
+      attachedDocs = [],       
+      attachedWhiteboards = [],
+      documents,                // ✅ ignore — frontend legacy field
+      ...rest
+    } = taskData;
 
     const task = await taskService.createTask(
       {
         workspaceId: Number(workspaceId),
         createdBy,
         assignees,
+        attachedDocs,       
+        attachedWhiteboards,
         ...rest,
       },
       transaction,
     );
 
-    console.log("attached files id", attachedFilesId);
     if (attachedFilesId.length > 0) {
       await updateFilesById(attachedFilesId, task.id, transaction);
     }
 
     await transaction.commit();
-
     sendSuccess(res, task, 201, "Task created successfully");
   } catch (err) {
     await transaction.rollback();

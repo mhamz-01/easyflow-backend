@@ -19,10 +19,7 @@ const checklistItemSchema = z.object({
 const createTaskSchema = z.object({
   workspaceId: positiveInt.optional().nullable(),
   projectId: positiveInt.optional().nullable(),
-  name: z
-    .string()
-    .min(1, "Title is required")
-    .max(255, "Title must be 255 characters or less"),
+  name: z.string().min(1, "Title is required").max(255, "Title must be 255 characters or less"),
   description: z.string().optional().nullable(),
   links: z.array(z.string().url("Each link must be a valid URL")).optional(),
   documents: z.array(positiveInt).optional(),
@@ -32,7 +29,9 @@ const createTaskSchema = z.object({
   assignees: z.array(positiveInt).optional(),
   dueDate: z.string().optional(),
   attachedFilesId: z.array(positiveInt).optional(),
-});
+  attachedDocs: z.array(positiveInt).optional().default([]),        // ✅ add
+  attachedWhiteboards: z.array(positiveInt).optional().default([]), // ✅ add
+})
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 

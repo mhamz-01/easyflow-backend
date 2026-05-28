@@ -1,4 +1,4 @@
-const { RecentActivities } = require("../../database/models");
+const { RecentActivities , User } = require("../../database/models");
 const {
   createRecentActivityBodySchema,
   getAllRecentActivitiesSchema,
@@ -45,30 +45,36 @@ const createRecentActivity = async (req, res) => {
   }
 };
 
+
+
 const getAllRecentActivities = async (req, res) => {
   try {
-    // validate
-    const { userId, workspaceId } = getAllRecentActivitiesSchema.parse(
-      req.query
-    );
-    // fetch all recent activities, ordered by createdAt ascending
+    const { userId, workspaceId } = getAllRecentActivitiesSchema.parse(req.query);
+
     const recentActivities = await RecentActivities.findAll({
       where: { workspaceId, userId },
-      order: [["createdAt", "ASC"]],
+      order: [["createdAt", "DESC"]],
       limit: 5,
     });
 
-    // send response
-    res.status(200).json({
-      success: true,
-      data: recentActivities,
-    });
+    // fetch editor info for each activity using clerkId
+    const data = await Promise.all(
+      recentActivities.map(async (activity) => {
+        const editor = await User.findOne({
+          where: { clerkId: activity.lastEditedBy },
+          attributes: ["username", "imageUrl"],
+        });
+        return {
+          ...activity.toJSON(),
+          editor: editor ? { username: editor.username, imageUrl: editor.imageUrl } : null,
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data });
   } catch (error) {
     console.error("Error fetching recent activities:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch recent activities",
-    });
+    res.status(500).json({ success: false, message: "Failed to fetch recent activities" });
   }
 };
 

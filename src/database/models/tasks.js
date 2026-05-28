@@ -54,11 +54,21 @@ module.exports = (sequelize) => {
         allowNull: true,
         defaultValue: [],
       },
+      attachedDocs: {           // ✅ new
+        type: DataTypes.ARRAY(DataTypes.INTEGER),
+        allowNull: true,
+        defaultValue: [],
+      },
+      attachedWhiteboards: {    // ✅ new
+        type: DataTypes.ARRAY(DataTypes.INTEGER),
+        allowNull: true,
+        defaultValue: [],
+      },
     },
     {
       tableName: "tasks",
-      timestamps: true, // Adds createdAt and updatedAt
-      underscored: false, // Keep camelCase everywhere
+      timestamps: true,
+      underscored: false,
       indexes: [
         { fields: ["workspaceId"] },
         { fields: ["projectId"] },
@@ -68,28 +78,23 @@ module.exports = (sequelize) => {
     },
   );
 
-  // Define associations
   Task.associate = (models) => {
     Task.belongsTo(models.Workspace, {
       foreignKey: "workspaceId",
       as: "workspace",
     });
-
     Task.belongsTo(models.Project, {
       foreignKey: "projectId",
       as: "project",
     });
-
     Task.belongsTo(models.User, {
       foreignKey: "createdBy",
       as: "creator",
     });
-
     Task.hasMany(models.File, {
       foreignKey: "taskId",
       as: "attachments",
     });
-    // Many-to-many with users (assignees)
     Task.belongsToMany(models.User, {
       through: "taskAssignees",
       foreignKey: "taskId",

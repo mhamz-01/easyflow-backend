@@ -1,7 +1,7 @@
 const { Op } = require("sequelize");
 const { Task, User, Project, File } = require("../database/models");
 const { AppError } = require("../utils/AppError");
-
+const { Document, Whiteboard } = require("../database/models"); 
 // ─── Reusable include config ──────────────────────────────────────────────────
 const TASK_INCLUDES = [
   {
@@ -13,26 +13,18 @@ const TASK_INCLUDES = [
     model: User,
     as: "assignees",
     attributes: ["id", "username", "email", "imageUrl"],
-    through: { attributes: [] }, // hide junction table
+    through: { attributes: [] },
   },
   {
     model: File,
     as: "attachments",
-    // attributes: [
-    //   "id",
-    //   "originalName",
-    //   "url",
-    //   "mimeType",
-    //   "size",
-    //   "previewUrl",
-    //   "createdAt",
-    // ],
   },
   {
     model: Project,
     as: "project",
     attributes: ["id", "name"],
   },
+  // ✅ removed Document and Whiteboard includes — not associations
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -120,13 +112,26 @@ const getTaskById = async (taskId, workspaceId) => {
     include: TASK_INCLUDES,
   });
 
-  if (!task) {
-    const err = new Error("Task not found");
-    err.status = 404;
-    throw err;
-  }
+  if (!task) throw new AppError("Task not found", 404);
 
-  return task;
+  const taskData = task.toJSON();
+
+  // ✅ enrich with actual doc/whiteboard records
+  taskData.documents = taskData.attachedDocs?.length > 0
+    ? await Document.findAll({
+        where: { id: taskData.attachedDocs },
+        attributes: ["id", "documentName"],
+      }).then(docs => docs.map(d => d.toJSON()))
+    : [];
+
+  taskData.whiteboards = taskData.attachedWhiteboards?.length > 0
+    ? await Whiteboard.findAll({
+        where: { id: taskData.attachedWhiteboards },
+        attributes: ["id", "whiteboardName"], // ✅ was "name" — check your Whiteboard model
+      }).then(wbs => wbs.map(w => w.toJSON()))
+    : [];
+
+  return taskData;
 };
 
 // Service
@@ -134,11 +139,15 @@ const createTask = async ({
   workspaceId,
   createdBy,
   assignees = [],
+  attachedDocs = [],        // ✅ explicitly extract
+  attachedWhiteboards = [],
   ...rest
 }) => {
   const task = await Task.create({
     workspaceId,
     createdBy,
+    attachedDocs,        // ✅ explicitly pass
+    attachedWhiteboards, // ✅ explicitly pass
     ...rest,
   });
 
@@ -149,26 +158,41 @@ const createTask = async ({
   return getTaskById(task.id, workspaceId);
 };
 const updateTask = async (taskId, workspaceId, { assigneeIds, ...fields }) => {
-  const task = await getTaskById(taskId, workspaceId); // throws 404 if not found
+  // ✅ fetch raw Sequelize instance — not the enriched plain object
+  const taskInstance = await Task.findOne({
+    where: { id: taskId, workspaceId },
+  });
 
-  await task.update(fields);
+  if (!taskInstance) throw new AppError("Task not found", 404);
+
+  await taskInstance.update(fields);
 
   if (assigneeIds !== undefined) {
-    await task.setAssignees(assigneeIds);
+    await taskInstance.setAssignees(assigneeIds);
   }
 
+  // ✅ return enriched response
   return getTaskById(taskId, workspaceId);
 };
 
 const deleteTask = async (taskId, workspaceId) => {
-  const task = await getTaskById(taskId, workspaceId); // throws 404 if not found
-  await task.destroy();
+  // ✅ fetch raw Sequelize instance
+  const taskInstance = await Task.findOne({
+    where: { id: taskId, workspaceId },
+  });
+
+  if (!taskInstance) throw new AppError("Task not found", 404);
+  await taskInstance.destroy();
 };
 
 const updateChecklist = async (taskId, workspaceId, checklist) => {
-  const task = await getTaskById(taskId, workspaceId);
-  await task.update({ checklist });
-  return task.checklist;
+  const taskInstance = await Task.findOne({
+    where: { id: taskId, workspaceId },
+  });
+
+  if (!taskInstance) throw new AppError("Task not found", 404);
+  await taskInstance.update({ checklist });
+  return taskInstance.checklist;
 };
 
 module.exports = {

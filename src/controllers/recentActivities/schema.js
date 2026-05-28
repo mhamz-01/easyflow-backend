@@ -1,13 +1,14 @@
 const z = require("zod");
 
+// schema.js
 const createRecentActivityBodySchema = z.object({
-  userId: z.string(),
   workspaceId: z.number(),
+  userId: z.string(),
   title: z.string(),
   type: z.enum(["DOC", "WHITEBOARD", "TASK"]),
   typeID: z.number(),
   projectID: z.number(),
-  lastEditedBy: z.date(),
+  lastEditedBy: z.string(), 
 });
 
 const getAllRecentActivitiesSchema = z.object({
