@@ -10,7 +10,7 @@ const WORKSPACE_API = {
   CREATE_INVITE: "/invite", // POST: create invite (email or link)
   ACCEPT_INVITE: "/invite/accept", // POST: accept invite
   ADD_USER: "/invite/add", // POST: add existing user instantly
-  LIST_INVITES: "/invites",
+  LIST_INVITES: "/invites", 
   DELETE_INVITE: "/invite/delete",
 };
 

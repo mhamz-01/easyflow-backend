@@ -49,43 +49,41 @@ const checkUserWorkspace = async (req, res) => {
  */
 const createWorkspace = async (req, res) => {
   try {
-    // get userId from clerk auth
     const { userId } = getAuth(req);
-
-    // validate incoming data
     const data = createWorkspaceSchema.parse(req.body);
-
-    // create a slug for workspace using its name
     const workspaceSlug = createSlug(req.body.workspaceName);
 
-    // ensure slug is unique for every user workspace
     const existing = await Workspace.findOne({
       where: { workspaceSlug: workspaceSlug, admin: userId },
     });
     if (existing) {
-      console.log(
-        "[Workspace] Workspace already exists for this user",
-        workspaceSlug,
-      );
       return res.status(201).json({
         success: false,
         message: "Workspace with this name already exists",
       });
     }
 
-    // create workspace
     const newWorkspace = await Workspace.create({
       admin: userId,
       workspaceName: data.workspaceName,
       workspaceSlug: workspaceSlug,
       isSelected: true,
     });
+
+    // ✅ Add creator as admin member
+    await WorkspaceMember.create({
+      workspaceId: newWorkspace.id,
+      userId: userId,   // clerkId of creator
+      role: "admin",
+      status: true,
+    });
+
     console.log("[Workspace] Workspace created successfully:", newWorkspace.id);
 
     return res.status(201).json({
       success: true,
       workspace: newWorkspace,
-      message: "workspace creates successfully",
+      message: "workspace created successfully",
     });
   } catch (error) {
     console.log("[Workspace] Error creating workspace:", error);
@@ -96,7 +94,6 @@ const createWorkspace = async (req, res) => {
         errors: error.errors,
       });
     }
-
     return res.status(500).json({
       success: false,
       message: "Something went wrong while creating workspace",
@@ -104,7 +101,6 @@ const createWorkspace = async (req, res) => {
     });
   }
 };
-
 /**
  *  This function fetches all the workspaces for specified users, using their IDs
  */

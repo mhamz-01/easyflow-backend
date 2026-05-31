@@ -12,7 +12,6 @@ const createRecentActivityBodySchema = z.object({
 });
 
 const getAllRecentActivitiesSchema = z.object({
-  userId: z.string(),
   workspaceId: z.string(),
 });
 

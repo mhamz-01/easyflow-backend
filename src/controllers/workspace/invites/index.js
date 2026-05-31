@@ -111,7 +111,7 @@ const createInvite = async (req, res) => {
 
     return res.json({ success: true, invite });
   } catch (err) {
-    await t.rollback(); // rollback any DB changes
+    await transaction.rollback(); // rollback any DB changes
     console.error("Invite error:", err);
     return res.status(500).json({
       success: false,

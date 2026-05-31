@@ -27,6 +27,7 @@ const createTaskSchema = z.object({
   state: taskState,
   priority: taskPriority,
   assignees: z.array(positiveInt).optional(),
+  assigneeIds: z.array(positiveInt).optional(),
   dueDate: z.string().optional(),
   attachedFilesId: z.array(positiveInt).optional(),
   attachedDocs: z.array(positiveInt).optional().default([]),        // ✅ add
@@ -35,7 +36,7 @@ const createTaskSchema = z.object({
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-const updateTaskSchema = createTaskSchema.partial().strict();
+const updateTaskSchema = createTaskSchema.partial()
 
 // ─── Patch: state ─────────────────────────────────────────────────────────────
 

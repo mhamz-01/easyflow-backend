@@ -49,15 +49,14 @@ const createRecentActivity = async (req, res) => {
 
 const getAllRecentActivities = async (req, res) => {
   try {
-    const { userId, workspaceId } = getAllRecentActivitiesSchema.parse(req.query);
+    const { workspaceId } = getAllRecentActivitiesSchema.parse(req.query);
 
     const recentActivities = await RecentActivities.findAll({
-      where: { workspaceId, userId },
+      where: { workspaceId }, // ✅ only filter by workspace
       order: [["createdAt", "DESC"]],
       limit: 5,
     });
 
-    // fetch editor info for each activity using clerkId
     const data = await Promise.all(
       recentActivities.map(async (activity) => {
         const editor = await User.findOne({
@@ -73,9 +72,7 @@ const getAllRecentActivities = async (req, res) => {
 
     res.status(200).json({ success: true, data });
   } catch (error) {
-    console.error("Error fetching recent activities:", error);
     res.status(500).json({ success: false, message: "Failed to fetch recent activities" });
   }
 };
-
 module.exports = { createRecentActivity, getAllRecentActivities };

@@ -1,20 +1,12 @@
 "use strict";
 
 module.exports = {
-  async up(queryInterface, Sequelize) {
-    /**
-     * Remove UNIQUE constraint from workspaceSlug
-     */
-    await queryInterface.removeConstraint(
-      "Workspaces",
-      "Workspaces_workspaceSlug_key"
-    );
+  async up() {
+    // Constraint doesn't exist in Supabase
+    return Promise.resolve();
   },
 
-  async down(queryInterface, Sequelize) {
-    /**
-     * Restore UNIQUE constraint on rollback
-     */
+  async down(queryInterface) {
     await queryInterface.addConstraint("Workspaces", {
       fields: ["workspaceSlug"],
       type: "unique",
