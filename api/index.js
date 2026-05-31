@@ -1,3 +1,3 @@
-const app = require("../src/app"); // ✅ export your express app
+const app = require("../app.js"); // ✅ export your express app
 
 module.exports = app;
