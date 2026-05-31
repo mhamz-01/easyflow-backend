@@ -36,4 +36,8 @@ const config = {
   },
 };
 
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config({ path: `${process.cwd()}/.env` });
+}
+
 module.exports = config;

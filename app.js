@@ -48,6 +48,8 @@ app.use(errorHandler);
 
 // ✅ Only listen locally — Vercel handles this in production
 if (process.env.NODE_ENV !== "production") {
+  const { configDotenv } = require("dotenv");
+  configDotenv();
   // cron jobs — only locally, not on Vercel
   require("./src/cron/cleanR2Files.js");
 
