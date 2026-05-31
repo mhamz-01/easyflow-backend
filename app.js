@@ -1,4 +1,3 @@
-const app = require('./app');
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const { configDotenv } = require("dotenv");
