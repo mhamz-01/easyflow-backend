@@ -1,3 +1,4 @@
+const app = require('./app');
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const { configDotenv } = require("dotenv");
@@ -80,6 +81,10 @@ app.use("/api/projects/:projectId/tasks", requireAuth(),attachUserAndWorkspaceId
 
 app.use(errorHandler);
 
-app.listen(port, () => {
-  console.log(`Backend is listening on port ${port}`);
-});
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Backend is listening on port ${port}`);
+  });
+}
+
+module.exports = app;

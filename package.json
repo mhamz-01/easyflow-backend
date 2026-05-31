@@ -19,6 +19,7 @@
     "@clerk/express": "^1.7.54",
     "@neondatabase/serverless": "^1.0.2",
     "@sequelize/postgres": "^7.0.0-alpha.47",
+    "@vercel/node": "^5.8.8",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
