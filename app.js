@@ -1,6 +1,5 @@
 const express = require("express");
 const cookieParser = require("cookie-parser");
-const { configDotenv } = require("dotenv");
 const workspaceRoutes = require("./src/routes/workspaceRoutes.js");
 const userRoutes = require("./src/routes/userRoutes.js");
 const projectRoutes = require("./src/routes/projectRoutes.js");
@@ -16,7 +15,11 @@ const cors = require("cors");
 const { clerkWebHook } = require("./src/utils/clerkWebhooks.js");
 const attachUserAndWorkspaceId = require("./src/middlewares/attachUserAndWorkspaceId.js");
 
-configDotenv();
+// ✅ Only load dotenv locally — Railway injects vars directly
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+  require("./src/cron/cleanR2Files.js");
+}
 
 const app = express();
 
@@ -46,17 +49,11 @@ app.use("/api/projects/:projectId/tasks", requireAuth(), attachUserAndWorkspaceI
 
 app.use(errorHandler);
 
-// ✅ Only listen locally — Vercel handles this in production
-if (process.env.NODE_ENV !== "production") {
-  const { configDotenv } = require("dotenv");
-  configDotenv();
-  // cron jobs — only locally, not on Vercel
-  require("./src/cron/cleanR2Files.js");
-
-  const port = process.env.PORT || 3001;
-  app.listen(port, () => {
-    console.log(`Backend is listening on port ${port}`);
-  });
-}
+// ✅ Always listen — Railway requires this
+const port = process.env.PORT || 3001;
+app.listen(port, () => {
+  console.log(`Backend is listening on port ${port}`);
+});
 
 module.exports = app;
+
