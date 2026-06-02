@@ -97,6 +97,7 @@ const createInvite = async (req, res) => {
 
     const inviteLink = `${process.env.ORIGIN}/accept-invitation/${token}?workspaceName=${workspace.workspaceName}&invitedBy=${inviterName}&role=${invite.role}&workspaceSlug=${workspace.workspaceSlug}`;
 
+    await transaction.commit();
     // ✅ Send email (outside DB transaction, we don't want rollback if email fails)
     await sendWorkspaceInviteEmail({
       to: email,
@@ -105,7 +106,7 @@ const createInvite = async (req, res) => {
       workspaceName: workspace.workspaceName,
       createdBy: inviterName,
       expiresInDays: INVITE_EXPIRY_DAYS,
-    });
+    }).catch((err) => console.error("Email send failed:", err));
 
     await transaction.commit(); // commit transaction after DB changes are safe
 
