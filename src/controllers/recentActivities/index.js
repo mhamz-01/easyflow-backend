@@ -1,4 +1,4 @@
-const { RecentActivities , User } = require("../../database/models");
+const { RecentActivities , User, Project } = require("../../database/models");
 const {
   createRecentActivityBodySchema,
   getAllRecentActivitiesSchema,
@@ -52,20 +52,27 @@ const getAllRecentActivities = async (req, res) => {
     const { workspaceId } = getAllRecentActivitiesSchema.parse(req.query);
 
     const recentActivities = await RecentActivities.findAll({
-      where: { workspaceId }, // ✅ only filter by workspace
+      where: { workspaceId },
       order: [["createdAt", "DESC"]],
       limit: 5,
     });
 
     const data = await Promise.all(
       recentActivities.map(async (activity) => {
-        const editor = await User.findOne({
-          where: { clerkId: activity.lastEditedBy },
-          attributes: ["username", "imageUrl"],
-        });
+        const [editor, project] = await Promise.all([
+          User.findOne({
+            where: { clerkId: activity.lastEditedBy },
+            attributes: ["username", "imageUrl"],
+          }),
+          Project.findOne({
+            where: { id: activity.projectID },
+            attributes: ["name"],
+          }),
+        ]);
         return {
           ...activity.toJSON(),
           editor: editor ? { username: editor.username, imageUrl: editor.imageUrl } : null,
+          projectName: project?.name ?? null,
         };
       })
     );
