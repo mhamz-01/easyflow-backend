@@ -61,6 +61,7 @@ module.exports = (sequelize, DataTypes) => {
     });
     Document.belongsTo(models.User, {
       foreignKey: "createdBy",
+      as: "creator",
     });
   };
 

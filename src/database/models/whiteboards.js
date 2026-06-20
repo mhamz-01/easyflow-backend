@@ -66,6 +66,7 @@ module.exports = (sequelize, DataTypes) => {
     });
     Whiteboard.belongsTo(models.User, {
       foreignKey: "createdBy",
+      as: "creator",
     });
   };
 

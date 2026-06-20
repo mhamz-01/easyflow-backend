@@ -30,26 +30,40 @@ const {
       const whiteboards = await Whiteboard.findAll({
         where: { projectId, workspaceId },
         attributes: ["id", "whiteboardName", "isPrivate", "createdBy", "createdDate", "assignees"],
+        include: [
+          {
+            model: User,
+            as: "creator",
+            attributes: ["id", "username", "imageUrl"],
+          },
+        ],
       });
   
-      // enrich assignees with user info
-      const enriched = await Promise.all(
-        whiteboards.map(async (whiteboard) => {
-          const plain = whiteboard.toJSON();
-          if (plain.assignees?.length) {
-            const assigneeUsers = await User.findAll({
-              where: { id: plain.assignees },
-              attributes: ["id", "username", "imageUrl"],
-            });
-            plain.assignees = assigneeUsers;
-          } else {
-            plain.assignees = [];
-          }
-          return plain;
-        }),
-      );
+      // collect every assignee id across all whiteboards so we resolve users in one query
+      const allAssigneeIds = [
+        ...new Set(whiteboards.flatMap((whiteboard) => whiteboard.assignees ?? [])),
+      ];
   
-      res.status(200).json({ success: true, whiteboards: enriched });
+      const assigneeUsers = allAssigneeIds.length
+        ? await User.findAll({
+            where: { id: allAssigneeIds },
+            attributes: ["id", "username", "imageUrl"],
+          })
+        : [];
+  
+      const assigneeMap = new Map(assigneeUsers.map((u) => [u.id, u.toJSON()]));
+  
+      const result = whiteboards.map((whiteboard) => {
+        const plain = whiteboard.toJSON();
+        return {
+          ...plain,
+          assignees: (plain.assignees ?? [])
+            .map((id) => assigneeMap.get(id))
+            .filter(Boolean),
+        };
+      });
+  
+      res.status(200).json({ success: true, whiteboards: result });
     } catch (error) {
       console.error(error);
       res.status(400).json({ success: false, error: error.message });

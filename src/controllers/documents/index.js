@@ -37,16 +37,40 @@ const getAllDocs = async (req, res) => {
         "createdBy",
         "createdDate",
         "assignees",
-        "content", // ✅ needed for preview extraction
+        "content",
+      ],
+      include: [
+        {
+          model: User,
+          as: "creator",
+          attributes: ["id", "username", "imageUrl"],
+        },
       ],
     });
+
+    // collect every assignee id across all docs so we resolve users in one query
+    const allAssigneeIds = [
+      ...new Set(docs.flatMap((doc) => doc.assignees ?? [])),
+    ];
+
+    const assigneeUsers = allAssigneeIds.length
+      ? await User.findAll({
+          where: { id: allAssigneeIds },
+          attributes: ["id", "username", "imageUrl"],
+        })
+      : [];
+
+    const assigneeMap = new Map(assigneeUsers.map((u) => [u.id, u.toJSON()]));
 
     const result = docs.map((doc) => {
       const plain = doc.toJSON();
       return {
         ...plain,
-        preview: extractDocPreview(plain.content), // ✅ extracted preview
-        content: undefined, // ✅ don't expose full content in listing
+        assignees: (plain.assignees ?? [])
+          .map((id) => assigneeMap.get(id))
+          .filter(Boolean),
+        preview: extractDocPreview(plain.content),
+        content: undefined,
       };
     });
 
