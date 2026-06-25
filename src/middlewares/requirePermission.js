@@ -12,9 +12,7 @@ function requirePermission(permission) {
       if (!role) {
         return res.status(403).json({ message: "Not a workspace member" });
       }
-      console.log("role", role);
       const permissions = rolePermissions[role] || [];
-      console.log("permissions", permissions);
       if (!permissions.includes(permission) && !permissions.includes("*")) {
         return res.status(403).json({ message: "Forbidden" });
       }

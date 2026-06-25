@@ -67,9 +67,9 @@ const createTask = async (req, res, next) => {
     const {
       assignees = [],
       attachedFilesId = [],
-      attachedDocs = [],       
+      attachedDocs = [],
       attachedWhiteboards = [],
-      documents,                // ✅ ignore — frontend legacy field
+      documents, // ✅ ignore — frontend legacy field
       ...rest
     } = taskData;
 
@@ -78,7 +78,7 @@ const createTask = async (req, res, next) => {
         workspaceId: Number(workspaceId),
         createdBy,
         assignees,
-        attachedDocs,       
+        attachedDocs,
         attachedWhiteboards,
         ...rest,
       },
@@ -108,7 +108,7 @@ const updateTask = async (req, res, next) => {
       req.body,
     );
 
-    res.json(task);
+    sendSuccess(res, task, 200, "Task updated successfully");
   } catch (err) {
     next(err);
   }
@@ -118,8 +118,8 @@ const updateTask = async (req, res, next) => {
 // ✅ Fix — get workspaceId from req, taskId from params (same pattern as updateTask)
 const deleteTask = async (req, res, next) => {
   try {
-    const { workspaceId } = req;        // ✅ from attachUser middleware
-    const { taskId } = req.params;      // ✅ from URL
+    const { workspaceId } = req; // ✅ from attachUser middleware
+    const { taskId } = req.params; // ✅ from URL
     await taskService.deleteTask(parseInt(taskId), parseInt(workspaceId));
     res.status(204).send();
   } catch (err) {
