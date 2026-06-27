@@ -1,5 +1,5 @@
 const dotenv = require("dotenv");
-dotenv.config({ debug: true, path: `${process.cwd()}/.env` });
+dotenv.config({ path: `${process.cwd()}/.env.${process.env.NODE_ENV || "development"}` });
 
 const config = {
   development: {
@@ -37,7 +37,7 @@ const config = {
 };
 
 if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config({ path: `${process.cwd()}/.env` });
+  require("dotenv").config({ path: `${process.cwd()}/.env.${process.env.NODE_ENV || "development"}` });
 }
 
 module.exports = config;

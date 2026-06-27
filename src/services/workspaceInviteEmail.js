@@ -1,4 +1,4 @@
-const transporter = require("../lib/email");
+const resend = require("../lib/email");
 
 const sendWorkspaceInviteEmail = async ({
   to,
@@ -8,18 +8,19 @@ const sendWorkspaceInviteEmail = async ({
   workspaceName,
   createdBy,
 }) => {
-  return transporter.sendMail({
-    from: `"EasyFlow" <${process.env.SMTP_USER}>`,
+  return resend.emails.send({
+    from: `EasyFlow <${process.env.RESEND_FROM_EMAIL}>`,
     to,
-    subject: "You're invited to join a workspace",
+    subject: "You've been invited to join a workspace",
+    text: `You've been invited to join ${workspaceName}.\nInvited by: ${createdBy}\nRole: ${role}\nAccept here: ${inviteLink}\n\nThis invite expires in ${expiresInDays} days.`,
     html: `
       <div style="font-family: Arial, sans-serif;">
-        <h2>You’ve been invited</h2>
+        <h2>You've been invited</h2>
 
         ${
           workspaceName
-            ? `<p>You’ve been invited to join <strong>${workspaceName}</strong>.</p>`
-            : `<p>You’ve been invited to join a workspace.</p>`
+            ? `<p>You've been invited to join <strong>${workspaceName}</strong>.</p>`
+            : `<p>You've been invited to join a workspace.</p>`
         }
 
         ${createdBy ? `<p><strong>Invited by:</strong> ${createdBy}</p>` : ""}

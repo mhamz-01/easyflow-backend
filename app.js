@@ -17,7 +17,7 @@ const attachUserAndWorkspaceId = require("./src/middlewares/attachUserAndWorkspa
 
 // ✅ Only load dotenv locally — Railway injects vars directly
 if (process.env.NODE_ENV !== "production") {
-  require("dotenv").config();
+  require("dotenv").config({ path: `.env.${process.env.NODE_ENV || "development"}` });
   require("./src/cron/cleanR2Files.js");
 }
 

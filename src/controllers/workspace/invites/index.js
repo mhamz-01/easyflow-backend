@@ -106,9 +106,9 @@ const createInvite = async (req, res) => {
       workspaceName: workspace.workspaceName,
       createdBy: inviterName,
       expiresInDays: INVITE_EXPIRY_DAYS,
-    }).catch((err) => console.error("Email send failed:", err));
-
-    await transaction.commit(); // commit transaction after DB changes are safe
+    }).catch((err) => {
+      console.error("Email send failed:", err?.message ?? err);
+    });
 
     return res.json({ success: true, invite });
   } catch (err) {

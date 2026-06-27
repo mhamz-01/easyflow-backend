@@ -1,16 +1,19 @@
-const transporter = require("../lib/email");
+const resend = require("../lib/email");
 
 const sendAssignmentEmail = async ({
   to,
-  itemName,        // document or whiteboard name
-  itemType,        // "document" | "whiteboard"
+  itemName,
+  itemType,
   assignedBy,
   itemLink,
 }) => {
-  return transporter.sendMail({
-    from: `"EasyFlow" <${process.env.SMTP_USER}>`,
+  const itemTypeLabel = itemType.charAt(0).toUpperCase() + itemType.slice(1);
+
+  return resend.emails.send({
+    from: `EasyFlow <${process.env.RESEND_FROM_EMAIL}>`,
     to,
     subject: `You've been assigned to a ${itemType} — "${itemName}"`,
+    text: `${assignedBy ?? "Someone"} assigned you to the ${itemType} "${itemName}".\nView it here: ${itemLink}`,
     html: `
       <div style="font-family: Arial, sans-serif;">
         <h2>You've been assigned to a ${itemType}</h2>
@@ -18,7 +21,7 @@ const sendAssignmentEmail = async ({
           <strong>${assignedBy ?? "Someone"}</strong> assigned you to the
           ${itemType} <strong>"${itemName}"</strong>.
         </p>
-        
+        <a
           href="${itemLink}"
           style="
             display:inline-block;
@@ -30,7 +33,7 @@ const sendAssignmentEmail = async ({
             margin-top:12px;
           "
         >
-          View ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}
+          View ${itemTypeLabel}
         </a>
       </div>
     `,
