@@ -11,5 +11,11 @@
       "src": "/(.*)",
       "dest": "api/index.js"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/clean-r2-files",
+      "schedule": "0 0 * * *"
+    }
   ]
 }

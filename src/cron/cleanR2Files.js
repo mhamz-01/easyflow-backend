@@ -1,34 +1,13 @@
 // cron/cleanupFiles.js
+// Local development only — node-cron needs a long-running process, which
+// Vercel serverless functions are not. In production this same cleanup runs
+// via the /api/cron/clean-r2-files route, invoked on schedule by Vercel Cron
+// Jobs (see vercel.json + src/routes/cronRoutes.js).
 const cron = require("node-cron");
-const { Op } = require("sequelize");
-const { File } = require("../database/models");
-const { DeleteObjectCommand } = require("@aws-sdk/client-s3");
-const r2Client = require("../config/r2");
+const { cleanTempFiles } = require("../services/cleanR2Files.service");
 
 cron.schedule("0 0 * * *", async () => {
   console.log("🧹 Running file cleanup job...");
-
-  const cutoff = new Date(Date.now() - 30 * 60 * 1000);
-
-  const files = await File.findAll({
-    where: {
-      status: "TEMP",
-      taskId: null,
-      createdAt: { [Op.lt]: cutoff },
-    },
-  });
-
-  for (const file of files) {
-    try {
-      await r2Client.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET_NAME,
-          Key: file.fileKey,
-        }),
-      );
-      await file.destroy();
-    } catch (err) {
-      console.error("Failed to delete file:", file.id, err);
-    }
-  }
+  const { scanned, deleted } = await cleanTempFiles();
+  console.log(`🧹 Cleanup done — scanned ${scanned}, deleted ${deleted}`);
 });

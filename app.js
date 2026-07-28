@@ -9,15 +9,19 @@ const stickyNotesRoutes = require("./src/routes/stickyNotes.js");
 const recentActivitiesRoutes = require("./src/routes/recentActivitiesRoutes.js");
 const filesRoutes = require("./src/routes/filesRoute.js");
 const tasksRoutes = require("./src/routes/tasksRoutes.js");
+const cronRoutes = require("./src/routes/cronRoutes.js");
 const errorHandler = require("./src/middlewares/errorHandler.js");
 const { clerkMiddleware, requireAuth } = require("@clerk/express");
 const cors = require("cors");
 const { clerkWebHook } = require("./src/utils/clerkWebhooks.js");
 const attachUserAndWorkspaceId = require("./src/middlewares/attachUserAndWorkspaceId.js");
 
-// ✅ Only load dotenv locally — Railway injects vars directly
+// ✅ Only load dotenv locally — Railway/Vercel inject vars directly
 if (process.env.NODE_ENV !== "production") {
   require("dotenv").config({ path: `.env.${process.env.NODE_ENV || "development"}` });
+  // node-cron only works in a long-running process, so it's for local dev only.
+  // In production (Vercel), scheduled cleanup runs via the /api/cron route below,
+  // triggered by Vercel Cron Jobs (see vercel.json).
   require("./src/cron/cleanR2Files.js");
 }
 
@@ -29,6 +33,10 @@ app.post(
   express.raw({ type: "application/json" }),
   clerkWebHook,
 );
+
+// ✅ Cron endpoint — called by Vercel Cron Jobs, not a logged-in user,
+// so it's registered before Clerk's requireAuth() and secured with its own check.
+app.use("/api/cron", cronRoutes);
 
 // ✅ Global middleware
 app.use(cors({ origin: process.env.ORIGIN, credentials: true }));
@@ -49,11 +57,16 @@ app.use("/api/projects/:projectId/tasks", requireAuth(), attachUserAndWorkspaceI
 
 app.use(errorHandler);
 
-// ✅ Always listen — Railway requires this
-const port = process.env.PORT || 3001;
-app.listen(port, () => {
-  console.log(`Backend is listening on port ${port}`);
-});
+// ✅ Only bind a port when run directly (Railway/local: `node app.js`).
+// On Vercel, api/index.js requires this module and exports it as a
+// serverless handler instead — Vercel manages the request lifecycle itself,
+// so calling app.listen() there would be wrong (no persistent process/port).
+if (require.main === module) {
+  const port = process.env.PORT || 3001;
+  app.listen(port, () => {
+    console.log(`Backend is listening on port ${port}`);
+  });
+}
 
 module.exports = app;
 
