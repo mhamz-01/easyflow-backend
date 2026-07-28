@@ -8,3 +8,4 @@ node_modules/
 # other files
 todo_.md
 
+.vercel
