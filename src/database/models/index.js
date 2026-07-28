@@ -2,6 +2,13 @@ const fs = require("fs");
 const path = require("path");
 const Sequelize = require("sequelize");
 const process = require("process");
+
+// Sequelize loads the "pg" driver via a dynamic require based on the
+// `dialect` string, which Vercel's build-time file tracer can't detect
+// statically — so it gets left out of the deployed function bundle. A plain
+// static require here forces the tracer to include it.
+require("pg");
+require("pg-hstore");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
 const config = require(__dirname + "/../../config/database.js")[env];
