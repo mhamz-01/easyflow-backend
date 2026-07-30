@@ -190,6 +190,8 @@ const {
             itemType: "whiteboard",       // ✅
             assignedBy: assigner?.username ?? "Someone",
             itemLink: `${process.env.ORIGIN}/whiteboards/${whiteboardId}`,
+          }).catch((err) => {
+            console.error("Assignment email failed:", err?.message ?? err);
           }),
         ),
       );

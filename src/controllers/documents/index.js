@@ -223,6 +223,8 @@ const assignDoc = async (req, res) => {
           itemType: "document",       // ✅
           assignedBy: assigner?.username ?? "Someone",
           itemLink: `${process.env.ORIGIN}/docs/${docId}`,
+        }).catch((err) => {
+          console.error("Assignment email failed:", err?.message ?? err);
         }),
       ),
     );
