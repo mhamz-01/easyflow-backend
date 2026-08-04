@@ -25,19 +25,38 @@ const assertNotRateLimited = async (workspaceId, userId) => {
 };
 
 // ─── Create ─────────────────────────────────────────────────────────────────────
-const createMessage = async ({ workspaceId, userId, content }) => {
-  await assertNotRateLimited(workspaceId, userId);
+// `author` is the requester's own profile, already fetched once by
+// attachUserAndWorkspaceId — reused here instead of a second author lookup
+// (findByPk + join) after the insert. `projectId` null = General channel.
+// Rate limiting stays workspace-wide (not per-channel) on purpose.
+const createMessage = async ({ workspaceId, projectId = null, author, content, attachment }) => {
+  await assertNotRateLimited(workspaceId, author.id);
 
-  const message = await ChatMessage.create({ workspaceId, userId, content });
-
-  return ChatMessage.findByPk(message.id, {
-    include: [{ model: User, as: "author", attributes: AUTHOR_ATTRIBUTES }],
+  const message = await ChatMessage.create({
+    workspaceId,
+    projectId,
+    userId: author.id,
+    content: content ?? null,
+    attachment: attachment ?? null,
   });
+
+  return {
+    id: message.id,
+    workspaceId: message.workspaceId,
+    projectId: message.projectId,
+    userId: message.userId,
+    content: message.content,
+    attachment: message.attachment,
+    editedAt: message.editedAt,
+    createdAt: message.createdAt,
+    updatedAt: message.updatedAt,
+    author,
+  };
 };
 
 // ─── Read (cursor-paginated, newest page first) ─────────────────────────────────
-const getMessages = async ({ workspaceId, cursor = null, limit = 30 }) => {
-  const where = { workspaceId };
+const getMessages = async ({ workspaceId, projectId = null, cursor = null, limit = 30 }) => {
+  const where = { workspaceId, projectId };
   if (cursor) {
     where.id = { [Op.lt]: cursor }; // older than the last message the client has
   }

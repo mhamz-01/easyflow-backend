@@ -45,13 +45,16 @@ const getUserName = async (clerkId) => {
   return user.username;
 };
 
-const getUserIdUsingClerkId = async (clerkId) => {
+// Shared by getUserIdUsingClerkId / getUserProfileUsingClerkId below so the
+// self-heal fallback only lives in one place — callers just pick which
+// columns they need.
+const findUserByClerkId = async (clerkId, attributes) => {
   if (!clerkId) {
     throw new Error("ClerkId is required");
   }
   let user = await User.findOne({
     where: { clerkId },
-    attributes: ["id"],
+    attributes,
   });
 
   if (!user) {
@@ -63,7 +66,7 @@ const getUserIdUsingClerkId = async (clerkId) => {
     const clerkUser = await clerkClient.users.getUser(clerkId).catch(() => null);
     if (clerkUser) {
       await handleClerkUserCreated(clerkUser);
-      user = await User.findOne({ where: { clerkId }, attributes: ["id"] });
+      user = await User.findOne({ where: { clerkId }, attributes });
     }
   }
 
@@ -75,7 +78,24 @@ const getUserIdUsingClerkId = async (clerkId) => {
     throw new NotFoundError("User not found");
   }
 
+  return user;
+};
+
+const getUserIdUsingClerkId = async (clerkId) => {
+  const user = await findUserByClerkId(clerkId, ["id"]);
   return user.id;
+};
+
+// Used by attachUserAndWorkspaceId so routes that need author display info
+// (e.g. chat) don't have to re-fetch the same user row a second time.
+const getUserProfileUsingClerkId = async (clerkId) => {
+  const user = await findUserByClerkId(clerkId, ["id", "username", "email", "imageUrl"]);
+  return {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    imageUrl: user.imageUrl,
+  };
 };
 
 const deleteR2FileUsingKey = async (fileKey) => {
@@ -91,5 +111,6 @@ module.exports = {
   handleClerkUserCreated,
   getUserName,
   getUserIdUsingClerkId,
+  getUserProfileUsingClerkId,
   deleteR2FileUsingKey,
 };

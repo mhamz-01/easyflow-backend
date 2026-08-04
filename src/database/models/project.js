@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "projectId",
         onDelete: "CASCADE",
       });
+      Project.hasMany(models.ChatMessage, {
+        foreignKey: "projectId",
+        onDelete: "CASCADE",
+      });
       Project.belongsToMany(models.User, {
         through: "PrivateProjectMembers",
         foreignKey: "projectId",

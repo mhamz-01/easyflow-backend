@@ -6,10 +6,15 @@ const { getMessagesQuerySchema } = require("./schema");
 const sendMessage = async (req, res, next) => {
   try {
     const { workspaceId } = req;
-    const userId = req.user.id;
-    const { content } = req.body;
+    const { projectId, content, attachment } = req.body;
 
-    const message = await chatService.createMessage({ workspaceId, userId, content });
+    const message = await chatService.createMessage({
+      workspaceId,
+      projectId,
+      author: req.user,
+      content,
+      attachment,
+    });
     sendSuccess(res, message, 201, "Message sent");
   } catch (err) {
     next(err);
@@ -20,9 +25,9 @@ const sendMessage = async (req, res, next) => {
 const listMessages = async (req, res, next) => {
   try {
     const { workspaceId } = req;
-    const { cursor, limit } = getMessagesQuerySchema.parse(req.query);
+    const { projectId, cursor, limit } = getMessagesQuerySchema.parse(req.query);
 
-    const result = await chatService.getMessages({ workspaceId, cursor, limit });
+    const result = await chatService.getMessages({ workspaceId, projectId, cursor, limit });
     sendSuccess(res, result);
   } catch (err) {
     next(err);
