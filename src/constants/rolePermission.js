@@ -11,11 +11,14 @@ const rolePermissions = {
     "task:create",
     "task:update",
     "task:delete",
+    "chat:read",
+    "chat:post",
   ],
 
-  member: ["task:read", "task:create", "task:update"],
+  member: ["task:read", "task:create", "task:update", "chat:read", "chat:post"],
 
-  viewer: ["task:read"],
+  // Any workspace member — including viewers — can participate in workspace chat.
+  viewer: ["task:read", "chat:read", "chat:post"],
 };
 
 module.exports = {
