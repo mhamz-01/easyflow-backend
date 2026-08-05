@@ -21,7 +21,7 @@ module.exports = {
     });
 
     // Snapshot of the shared task/document/whiteboard at share time
-    // (denormalized, same principle as the author snapshot in the realtime
+    // (denormalized, same principle as the author snapshot in  realtime
     // broadcast trigger) — shape: {type, id, title, projectId}.
     await queryInterface.addColumn("chatMessages", "attachment", {
       type: Sequelize.JSONB,
