@@ -13,6 +13,7 @@ const rolePermissions = {
     "task:delete",
     "chat:read",
     "chat:post",
+    "invite:manage",
   ],
 
   member: ["task:read", "task:create", "task:update", "chat:read", "chat:post"],

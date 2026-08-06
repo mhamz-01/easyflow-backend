@@ -35,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true, // null = shareable link
       },
       role: {
-        type: DataTypes.ENUM("owner", "admin", "member"),
+        type: DataTypes.ENUM("admin", "member", "viewer"),
         allowNull: false,
         defaultValue: "member",
       },

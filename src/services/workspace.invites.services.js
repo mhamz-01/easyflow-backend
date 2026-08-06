@@ -3,9 +3,11 @@ const { WorkspaceInvite, User, Workspace } = require("../database/models");
 
 const INVITE_EXPIRY_DAYS = 7;
 
+const normalizeEmail = (email) => (email ? email.trim().toLowerCase() : email);
+
 const getInvitations = async ({ email, transaction }) => {
   return WorkspaceInvite.findAll({
-    where: { email, acceptedAt: null },
+    where: { email: normalizeEmail(email), acceptedAt: null },
     include: [
       {
         model: User,
@@ -24,16 +26,18 @@ const getInvitations = async ({ email, transaction }) => {
  */
 const findWorkspaceInvite = async (workspaceId, email, transaction) => {
   return WorkspaceInvite.findOne({
-    where: { workspaceId, email, acceptedAt: null },
+    where: { workspaceId, email: normalizeEmail(email), acceptedAt: null },
     transaction,
   });
 };
 
 /**
- * Check if invite is still active
+ * Check if invite is still active. A null expiresAt is a shareable link
+ * that never expires, so it counts as active too.
  */
 const isInviteActive = (invite) => {
   if (!invite) return false;
+  if (!invite.expiresAt) return true;
   return invite.expiresAt > new Date();
 };
 
@@ -83,15 +87,19 @@ const createWorkspaceInvite = async ({
   token,
   expiresAt,
   createdBy,
+  transaction,
 }) => {
-  return WorkspaceInvite.create({
-    workspaceId,
-    email,
-    role,
-    token,
-    expiresAt,
-    createdBy,
-  });
+  return WorkspaceInvite.create(
+    {
+      workspaceId,
+      email: normalizeEmail(email),
+      role,
+      token,
+      expiresAt,
+      createdBy,
+    },
+    { transaction },
+  );
 };
 
 /**
@@ -125,6 +133,7 @@ const deleteWorkspaceInviteByIdToken = async (id, token) => {
 
 module.exports = {
   INVITE_EXPIRY_DAYS,
+  normalizeEmail,
   getInvitations,
   findWorkspaceInvite,
   isInviteActive,

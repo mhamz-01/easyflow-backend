@@ -26,6 +26,15 @@ if (process.env.NODE_ENV !== "production") {
   require("./src/cron/cleanR2Files.js");
 }
 
+// Log-and-continue instead of letting a stray bug (e.g. a typo'd variable
+// in a catch block) take down the whole process for every in-flight request.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 const app = express();
 
 // ✅ Webhook FIRST — before express.json() and cors
