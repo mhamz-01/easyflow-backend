@@ -49,33 +49,45 @@ const createRecentActivity = async (req, res) => {
 
 const getAllRecentActivities = async (req, res) => {
   try {
-    const { workspaceId } = getAllRecentActivitiesSchema.parse(req.query);
+    const { workspaceId, limit } = getAllRecentActivitiesSchema.parse(req.query);
 
     const recentActivities = await RecentActivities.findAll({
       where: { workspaceId },
       order: [["createdAt", "DESC"]],
-      limit: 5,
+      limit,
     });
 
-    const data = await Promise.all(
-      recentActivities.map(async (activity) => {
-        const [editor, project] = await Promise.all([
-          User.findOne({
-            where: { clerkId: activity.lastEditedBy },
-            attributes: ["username", "imageUrl"],
-          }),
-          Project.findOne({
-            where: { id: activity.projectID },
-            attributes: ["name"],
-          }),
-        ]);
-        return {
-          ...activity.toJSON(),
-          editor: editor ? { username: editor.username, imageUrl: editor.imageUrl } : null,
-          projectName: project?.name ?? null,
-        };
-      })
-    );
+    // Batch the per-row lookups instead of firing 2 queries per activity
+    // (was an N+1: 1 + 2*limit round trips for a list this small).
+    const editorClerkIds = [...new Set(recentActivities.map((a) => a.lastEditedBy).filter(Boolean))];
+    const projectIds = [...new Set(recentActivities.map((a) => a.projectID).filter(Boolean))];
+
+    const [editors, projects] = await Promise.all([
+      editorClerkIds.length
+        ? User.findAll({
+            where: { clerkId: editorClerkIds },
+            attributes: ["clerkId", "username", "imageUrl"],
+          })
+        : [],
+      projectIds.length
+        ? Project.findAll({
+            where: { id: projectIds },
+            attributes: ["id", "name"],
+          })
+        : [],
+    ]);
+
+    const editorByClerkId = new Map(editors.map((e) => [e.clerkId, e]));
+    const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+
+    const data = recentActivities.map((activity) => {
+      const editor = editorByClerkId.get(activity.lastEditedBy);
+      return {
+        ...activity.toJSON(),
+        editor: editor ? { username: editor.username, imageUrl: editor.imageUrl } : null,
+        projectName: projectNameById.get(activity.projectID) ?? null,
+      };
+    });
 
     res.status(200).json({ success: true, data });
   } catch (error) {

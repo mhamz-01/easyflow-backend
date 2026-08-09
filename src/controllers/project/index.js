@@ -1,7 +1,5 @@
-const { getAuth } = require("@clerk/express");
 const { Workspace, Project } = require("../../database/models");
 const { createProjectSchema } = require("./schemas");
-const { getUserIdUsingClerkId } = require("../../services/auth/user.service");
 const { getWorkspaceBySlug } = require("../../services/workspace.services");
 const { getProjectsForSidebar } = require("../../services/project.services");
 
@@ -50,10 +48,10 @@ const createProject = async (req, res) => {
 const getProjectsByWorkspaceSlug = async (req, res) => {
   try {
     const { slug: workspaceSlug } = req.query;
-    const { userId: clerkId } = getAuth(req);
 
-    // get user Id
-    const userId = await getUserIdUsingClerkId(clerkId);
+    // req.user is already populated by attachUserAndWorkspaceId — no need
+    // to look the user up again here.
+    const userId = req.user.id;
 
     if (!workspaceSlug) {
       return res.status(400).json({
