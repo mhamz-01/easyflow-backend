@@ -119,3 +119,46 @@ using (
     )
   )
 );
+
+-- ─── 3. Broadcast message deletion ─────────────────────────────────────────────
+-- ChatMessage is a paranoid (soft-delete) model — Sequelize's .destroy() just
+-- UPDATEs "deletedAt" rather than removing the row, so deletion is an UPDATE
+-- trigger, not a DELETE one. Fires only on the null -> not-null transition so
+-- it can't double-fire from some other future column update. Payload is
+-- intentionally minimal (just enough to find-and-remove client-side) since,
+-- unlike the insert broadcast, there's no "message shape" to hydrate a card
+-- with.
+create or replace function public.broadcast_chat_message_deleted()
+returns trigger
+language plpgsql
+security definer
+as $$
+declare
+  v_topic text;
+begin
+  if new."deletedAt" is null or old."deletedAt" is not null then
+    return new;
+  end if;
+
+  v_topic := 'workspace-chat:' || new."workspaceId"::text || ':' ||
+             coalesce(new."projectId"::text, 'general');
+
+  perform realtime.send(
+    jsonb_build_object(
+      'id', new.id,
+      'workspaceId', new."workspaceId",
+      'projectId', new."projectId"
+    ),
+    'chat_message_deleted',   -- event
+    v_topic,
+    true                      -- private channel
+  );
+  return new;
+end;
+$$;
+
+drop trigger if exists chat_messages_broadcast_delete on public."chatMessages";
+
+create trigger chat_messages_broadcast_delete
+after update on public."chatMessages"
+for each row execute function public.broadcast_chat_message_deleted();

@@ -1,5 +1,6 @@
 const chatService = require("../../services/chat.service");
 const { sendSuccess } = require("../../utils");
+const { AppError } = require("../../utils/AppError");
 const { getMessagesQuerySchema } = require("./schema");
 
 // ─── POST /api/chat/messages ────────────────────────────────────────────────────
@@ -34,4 +35,24 @@ const listMessages = async (req, res, next) => {
   }
 };
 
-module.exports = { sendMessage, listMessages };
+// ─── DELETE /api/chat/messages/:messageId ────────────────────────────────────
+const deleteMessage = async (req, res, next) => {
+  try {
+    const { workspaceId } = req;
+    const messageId = Number(req.params.messageId);
+    if (!Number.isInteger(messageId) || messageId <= 0) {
+      throw new AppError("Invalid message id", 400);
+    }
+
+    const result = await chatService.deleteMessage({
+      workspaceId,
+      messageId,
+      userId: req.user.id,
+    });
+    sendSuccess(res, result, 200, "Message deleted");
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { sendMessage, listMessages, deleteMessage };

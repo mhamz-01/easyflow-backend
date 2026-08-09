@@ -79,4 +79,24 @@ const getMessages = async ({ workspaceId, projectId = null, cursor = null, limit
   };
 };
 
-module.exports = { createMessage, getMessages };
+// ─── Delete (soft — paranoid: true sets deletedAt) ──────────────────────────
+// Scoped to workspaceId (can't reach into another workspace by id-guessing)
+// and to the requester being the author — no admin-delete-others-messages
+// path for now, keep it simple. The soft-delete UPDATE is what the Supabase
+// trigger in chat-realtime-setup.sql listens for to broadcast the removal.
+const deleteMessage = async ({ workspaceId, messageId, userId }) => {
+  const message = await ChatMessage.findOne({ where: { id: messageId, workspaceId } });
+  if (!message) {
+    throw new AppError("Message not found", 404);
+  }
+  if (message.userId !== userId) {
+    throw new AppError("You can only delete your own messages", 403);
+  }
+
+  const { id, projectId } = message;
+  await message.destroy();
+
+  return { id, projectId };
+};
+
+module.exports = { createMessage, getMessages, deleteMessage };
