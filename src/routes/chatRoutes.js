@@ -2,8 +2,8 @@ const express = require("express");
 const { validate } = require("../middlewares/validate");
 const { requirePermission } = require("../middlewares/requirePermission");
 const { requireChatChannelAccess } = require("../middlewares/requireChatChannelAccess");
-const { sendMessageSchema } = require("../controllers/chat/schema");
-const { sendMessage, listMessages, deleteMessage } = require("../controllers/chat");
+const { sendMessageSchema, markReadSchema } = require("../controllers/chat/schema");
+const { sendMessage, listMessages, deleteMessage, markRead, getUnread } = require("../controllers/chat");
 const { CHAT_API } = require("../constants/chat.api");
 
 const router = express.Router();
@@ -31,6 +31,24 @@ router.delete(
   CHAT_API.DELETE_MESSAGE,
   requirePermission("chat:post"),
   deleteMessage,
+);
+
+router.post(
+  CHAT_API.MARK_READ,
+  requirePermission("chat:read"),
+  validate(markReadSchema),
+  requireChatChannelAccess(),
+  markRead,
+);
+
+// No requireChatChannelAccess() here — this isn't scoped to one channel,
+// it returns every channel the user can see in one shot; the per-channel
+// filtering happens inside getUnreadSummary (via getProjectsForSidebar)
+// instead of at the route layer.
+router.get(
+  CHAT_API.GET_UNREAD,
+  requirePermission("chat:read"),
+  getUnread,
 );
 
 module.exports = router;

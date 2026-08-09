@@ -28,4 +28,17 @@ const getMessagesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
-module.exports = { attachmentSchema, sendMessageSchema, getMessagesQuerySchema };
+// projectId absent => General channel. lastMessageId is optional — the
+// client sends it when it already knows the channel's latest loaded id
+// (avoids an extra lookup); server falls back to computing it when absent.
+const markReadSchema = z.object({
+  projectId: z.coerce.number().int().positive().optional(),
+  lastMessageId: z.coerce.number().int().positive().optional(),
+});
+
+module.exports = {
+  attachmentSchema,
+  sendMessageSchema,
+  getMessagesQuerySchema,
+  markReadSchema,
+};

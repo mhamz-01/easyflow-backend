@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
-const { ChatMessage, User } = require("../database/models");
+const { ChatMessage, ChatReadState, User } = require("../database/models");
 const { AppError } = require("../utils/AppError");
+const { getProjectsForSidebar } = require("./project.services");
 
 // ─── Anti-spam guard ───────────────────────────────────────────────────────────
 // Simple DB-backed rate limit (no Redis in this stack) — good enough for a
@@ -99,4 +100,79 @@ const deleteMessage = async ({ workspaceId, messageId, userId }) => {
   return { id, projectId };
 };
 
-module.exports = { createMessage, getMessages, deleteMessage };
+// ─── Read cursor (per user, per channel) ─────────────────────────────────────
+// "Mark read": the client passes the highest message id it actually
+// rendered when it knows one (avoids an extra query on the common path —
+// opening a channel that already has messages loaded); if omitted, the
+// true latest message id in that channel is looked up server-side instead
+// (e.g. a generic "catch me up" call, or opening a channel with nothing
+// loaded yet). The cursor only ever moves forward — never regresses from a
+// stale/out-of-order call — since a lower incoming id just means "I already
+// know about something newer."
+const markChannelRead = async ({ userId, workspaceId, projectId = null, lastMessageId }) => {
+  let targetId = lastMessageId ?? null;
+
+  if (targetId == null) {
+    targetId = await ChatMessage.max("id", { where: { workspaceId, projectId } });
+  }
+
+  const [state] = await ChatReadState.findOrCreate({
+    where: { userId, workspaceId, projectId },
+    defaults: { lastReadMessageId: targetId ?? null },
+  });
+
+  if (targetId != null && (state.lastReadMessageId ?? 0) < targetId) {
+    state.lastReadMessageId = targetId;
+    await state.save();
+  }
+
+  return { projectId, lastReadMessageId: state.lastReadMessageId };
+};
+
+// ─── Unread summary (sidebar + channel-rail badges) ──────────────────────────
+// One entry per channel this user can actually see — General plus every
+// project `getProjectsForSidebar` resolves for them, so a private project
+// they're not a member of is never even considered (consistent with every
+// other channel-access check in this feature; a badge is exactly the kind
+// of "frontend wouldn't have shown you this" leak that channel access has
+// been deliberately guarded against elsewhere). "Unread" = the channel's
+// latest message id is higher than this user's read cursor for it — no
+// cursor at all (never opened) counts as unread if the channel has any
+// messages.
+const getUnreadSummary = async ({ userId, workspaceId }) => {
+  const projects = await getProjectsForSidebar(workspaceId, userId);
+  const projectIds = projects.map((p) => p.id);
+  const channelIds = [null, ...projectIds];
+
+  const sequelize = ChatMessage.sequelize;
+  const channelWhere = {
+    workspaceId,
+    [Op.or]: [{ projectId: null }, { projectId: { [Op.in]: projectIds } }],
+  };
+
+  const [latestRows, readRows] = await Promise.all([
+    ChatMessage.findAll({
+      attributes: ["projectId", [sequelize.fn("MAX", sequelize.col("id")), "latestId"]],
+      where: channelWhere,
+      group: ["projectId"],
+      raw: true,
+    }),
+    ChatReadState.findAll({
+      where: { userId, workspaceId },
+      attributes: ["projectId", "lastReadMessageId"],
+      raw: true,
+    }),
+  ]);
+
+  const latestByChannel = new Map(latestRows.map((r) => [r.projectId, Number(r.latestId)]));
+  const readByChannel = new Map(readRows.map((r) => [r.projectId, r.lastReadMessageId]));
+
+  return channelIds.map((projectId) => {
+    const latestId = latestByChannel.get(projectId) ?? null;
+    const lastReadId = readByChannel.get(projectId) ?? null;
+    const unread = latestId != null && (lastReadId == null || lastReadId < latestId);
+    return { projectId, unread };
+  });
+};
+
+module.exports = { createMessage, getMessages, deleteMessage, markChannelRead, getUnreadSummary };

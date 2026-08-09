@@ -55,4 +55,41 @@ const deleteMessage = async (req, res, next) => {
   }
 };
 
-module.exports = { sendMessage, listMessages, deleteMessage };
+// ─── POST /api/chat/read ──────────────────────────────────────────────────────
+// req.body here is already Zod-coerced by validate(markReadSchema) —
+// projectId/lastMessageId are numbers or undefined, never raw strings.
+const markRead = async (req, res, next) => {
+  try {
+    const { workspaceId } = req;
+    const { projectId, lastMessageId } = req.body;
+
+    const result = await chatService.markChannelRead({
+      userId: req.user.id,
+      workspaceId,
+      projectId: projectId ?? null,
+      lastMessageId,
+    });
+    sendSuccess(res, result);
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /api/chat/unread ──────────────────────────────────────────────────────
+// No projectId param — returns every channel this user can see in one
+// shot, since that's exactly what the sidebar + channel rail need to paint
+// every badge at once without one request per channel.
+const getUnread = async (req, res, next) => {
+  try {
+    const { workspaceId } = req;
+    const channels = await chatService.getUnreadSummary({
+      userId: req.user.id,
+      workspaceId,
+    });
+    sendSuccess(res, { channels });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { sendMessage, listMessages, deleteMessage, markRead, getUnread };
