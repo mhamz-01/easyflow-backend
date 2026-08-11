@@ -14,6 +14,7 @@ const rolePermissions = {
     "chat:read",
     "chat:post",
     "invite:manage",
+    "document:manage-access",
   ],
 
   member: ["task:read", "task:create", "task:update", "chat:read", "chat:post"],

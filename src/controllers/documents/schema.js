@@ -10,17 +10,14 @@ const getAllDocSchema = z.object({
   workspaceId: z.string(),
 });
 
-// update doc schema
+// update doc schema — columnName is restricted to fields that are safe for
+// any editor-level caller to touch directly; isPrivate/defaultAccess are
+// access-control settings and go through their own dedicated, permission-
+// checked routes instead (see grantDocAccessSchema / setDefaultAccessSchema).
 const updateDocSchema = z.object({
   id: z.coerce.number(),
-  columnName: z.string(),
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.date(),
-    z.any(), // for JSON / editor payloads
-  ]),
+  columnName: z.enum(["documentName", "content"]),
+  value: z.any(),
 });
 // body schema for createDoc
 const createDocBodySchema = z.object({
@@ -29,10 +26,25 @@ const createDocBodySchema = z.object({
   createdBy: z.string(),
   documentName: z.string().optional(),
   isPrivate: z.boolean().optional().default(false),
+  defaultAccess: z.enum(["view", "edit"]).optional(),
 });
+
+// grant/update a per-user access override on a public document
+const grantDocAccessSchema = z.object({
+  userId: z.coerce.number(),
+  accessLevel: z.enum(["view", "edit", "none"]),
+});
+
+// change a public document's default access level (creator or admin/owner)
+const setDefaultAccessSchema = z.object({
+  defaultAccess: z.enum(["view", "edit"]),
+});
+
 module.exports = {
   getAllDocSchema,
   createDocBodySchema,
   validateId,
   updateDocSchema,
+  grantDocAccessSchema,
+  setDefaultAccessSchema,
 };

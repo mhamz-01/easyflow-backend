@@ -39,6 +39,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: false,
       },
+      defaultAccess: {
+        type: DataTypes.ENUM("view", "edit"),
+        allowNull: false,
+        defaultValue: "edit",
+      },
       content: {
         type: DataTypes.JSONB,
         allowNull: true,
@@ -62,6 +67,10 @@ module.exports = (sequelize, DataTypes) => {
     Document.belongsTo(models.User, {
       foreignKey: "createdBy",
       as: "creator",
+    });
+    Document.hasMany(models.DocumentPermission, {
+      foreignKey: "documentId",
+      as: "permissions",
     });
   };
 

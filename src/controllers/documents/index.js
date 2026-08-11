@@ -1,6 +1,17 @@
-const { getAllDocSchema, createDocBodySchema, validateId, updateDocSchema } = require("./schema");
-const { Document, User } = require("../../database/models");
+const { getAuth } = require("@clerk/express");
+const {
+  getAllDocSchema,
+  createDocBodySchema,
+  validateId,
+  updateDocSchema,
+  grantDocAccessSchema,
+  setDefaultAccessSchema,
+} = require("./schema");
+const { Document, User, DocumentPermission } = require("../../database/models");
 const { sendAssignmentEmail } = require("../../services/sendAssignmentEmail");
+const { extractDocPreview } = require("../../utils/extractDocPreview");
+const { findWorkspaceMemberRole } = require("../../services/auth/workspaceMember");
+const { filterDocsByAccess, ADMIN_ROLES } = require("../../services/documentAccess.service");
 
 
 const getSingleDoc = async (req, res) => {
@@ -10,23 +21,35 @@ const getSingleDoc = async (req, res) => {
   const document = await Document.findByPk(id);
   // if document does not exist
   if (!document) {
-    res.status(404).json({
+    return res.status(404).json({
       success: false,
       message: "Document does not exist",
     });
   }
-  // send document in response
+  // send document in response — access is resolved by requireDocumentAccess
+  // for public docs; private docs are unaffected by this feature, so they
+  // keep behaving exactly as before (always fully editable by anyone who can
+  // load them).
   res.status(200).json({
     success: true,
     document,
+    access: document.isPrivate ? "edit" : req.documentAccess,
   });
 };
-
-const { extractDocPreview } = require("../../utils/extractDocPreview");
 
 const getAllDocs = async (req, res) => {
   try {
     const { projectId, workspaceId } = getAllDocSchema.parse(req.query);
+    const numericWorkspaceId = Number(workspaceId);
+
+    // Confirm the requester is actually a member of the workspace being
+    // queried (previously unchecked — any authenticated user could list any
+    // workspace's docs by passing an arbitrary workspaceId).
+    const { userId: clerkId } = getAuth(req);
+    const role = await findWorkspaceMemberRole(clerkId, numericWorkspaceId);
+    if (!role) {
+      return res.status(403).json({ success: false, message: "Not a workspace member" });
+    }
 
     const docs = await Document.findAll({
       where: { projectId, workspaceId },
@@ -34,6 +57,7 @@ const getAllDocs = async (req, res) => {
         "id",
         "documentName",
         "isPrivate",
+        "defaultAccess",
         "createdBy",
         "createdDate",
         "assignees",
@@ -48,9 +72,12 @@ const getAllDocs = async (req, res) => {
       ],
     });
 
+    // drop any public doc this user's access has been set/left at "none"
+    const visibleDocs = await filterDocsByAccess({ docs, userId: req.user.id, role });
+
     // collect every assignee id across all docs so we resolve users in one query
     const allAssigneeIds = [
-      ...new Set(docs.flatMap((doc) => doc.assignees ?? [])),
+      ...new Set(visibleDocs.flatMap((doc) => doc.assignees ?? [])),
     ];
 
     const assigneeUsers = allAssigneeIds.length
@@ -62,7 +89,7 @@ const getAllDocs = async (req, res) => {
 
     const assigneeMap = new Map(assigneeUsers.map((u) => [u.id, u.toJSON()]));
 
-    const result = docs.map((doc) => {
+    const result = visibleDocs.map((doc) => {
       const plain = doc.toJSON();
       return {
         ...plain,
@@ -84,7 +111,8 @@ const getAllDocs = async (req, res) => {
 const createDoc = async (req, res) => {
   try {
     // validate body data
-    const { workspaceId, projectId, createdBy, documentName,isPrivate } = createDocBodySchema.parse(req.body);
+    const { workspaceId, projectId, createdBy, documentName, isPrivate, defaultAccess } =
+      createDocBodySchema.parse(req.body);
 
     // get primary_key for user using 'createdBy'
     const user = await User.findOne({
@@ -93,7 +121,7 @@ const createDoc = async (req, res) => {
 
     // is not user is found
     if (!user) {
-      res.status(404).json({
+      return res.status(404).json({
         message: "No user found while creating document",
         success: false,
       });
@@ -106,6 +134,7 @@ const createDoc = async (req, res) => {
       createdBy: userPrimaryId,
       documentName,
       isPrivate: isPrivate ?? false,
+      defaultAccess: defaultAccess ?? "edit",
       createdDate: Date.now(),
     });
 
@@ -126,13 +155,12 @@ const createDoc = async (req, res) => {
 const updateDoc = async (req, res) => {
   // valiate values
   const { id, columnName, value } = updateDocSchema.parse(req.body);
-  console.log(id, columnName, value);
   // find doc
   const doc = await Document.findByPk(id);
 
   // send not found response
   if (!doc) {
-    res.status(404).json({
+    return res.status(404).json({
       success: false,
       message: "Document not found",
     });
@@ -147,7 +175,6 @@ const updateDoc = async (req, res) => {
 
 const deleteDoc = async (req, res) => {
   try {
-    console.log("DDDDDDDD", req.query);
     // validate id
     const { id } = validateId.parse(req.query);
 
@@ -239,4 +266,104 @@ const assignDoc = async (req, res) => {
   }
 };
 
-module.exports = { getAllDocs, createDoc, getSingleDoc, updateDoc, deleteDoc, assignDoc };
+// --- Access-control management (public documents only) ---
+
+const listDocAccess = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const grants = await DocumentPermission.findAll({
+      where: { documentId: id },
+      include: [{ model: User, as: "user", attributes: ["id", "username", "imageUrl"] }],
+      attributes: ["id", "userId", "accessLevel", "grantedBy"],
+    });
+    res.status(200).json({ success: true, grants });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const grantDocAccess = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId, accessLevel } = grantDocAccessSchema.parse(req.body);
+
+    const document = await Document.findByPk(id, {
+      attributes: ["id", "workspaceId", "isPrivate"],
+    });
+    if (!document || document.workspaceId !== req.workspaceId || document.isPrivate) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    let grant = await DocumentPermission.findOne({ where: { documentId: id, userId } });
+    if (grant) {
+      await grant.update({ accessLevel, grantedBy: req.user.id });
+    } else {
+      grant = await DocumentPermission.create({
+        documentId: id,
+        userId,
+        accessLevel,
+        grantedBy: req.user.id,
+      });
+    }
+
+    res.status(200).json({ success: true, grant });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const revokeDocAccess = async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+
+    const document = await Document.findByPk(id, {
+      attributes: ["id", "workspaceId", "isPrivate"],
+    });
+    if (!document || document.workspaceId !== req.workspaceId || document.isPrivate) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    await DocumentPermission.destroy({ where: { documentId: id, userId } });
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const setDefaultAccess = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { defaultAccess } = setDefaultAccessSchema.parse(req.body);
+
+    const document = await Document.findByPk(id);
+    if (!document || document.workspaceId !== req.workspaceId || document.isPrivate) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    // The creator can set their own doc's default; beyond that, only
+    // admin/owner can change it (req.documentRole is set by the
+    // requireDocumentAccess middleware this route runs behind).
+    const isCreator = document.createdBy === req.user.id;
+    if (!isCreator && !ADMIN_ROLES.includes(req.documentRole)) {
+      return res.status(403).json({ success: false, message: "Forbidden" });
+    }
+
+    await document.update({ defaultAccess });
+    res.status(200).json({ success: true, document });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+module.exports = {
+  getAllDocs,
+  createDoc,
+  getSingleDoc,
+  updateDoc,
+  deleteDoc,
+  assignDoc,
+  listDocAccess,
+  grantDocAccess,
+  revokeDocAccess,
+  setDefaultAccess,
+};
