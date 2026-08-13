@@ -39,6 +39,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: false,
       },
+      defaultAccess: {
+        type: DataTypes.ENUM("view", "edit"),
+        allowNull: false,
+        defaultValue: "edit",
+      },
       content: {
         type: DataTypes.JSONB,
         allowNull: true,
@@ -67,6 +72,10 @@ module.exports = (sequelize, DataTypes) => {
     Whiteboard.belongsTo(models.User, {
       foreignKey: "createdBy",
       as: "creator",
+    });
+    Whiteboard.hasMany(models.WhiteboardPermission, {
+      foreignKey: "whiteboardId",
+      as: "permissions",
     });
   };
 

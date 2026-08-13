@@ -64,6 +64,11 @@ module.exports = (sequelize) => {
         allowNull: true,
         defaultValue: [],
       },
+      isPrivate: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
       tableName: "tasks",

@@ -2,6 +2,8 @@ const { Op } = require("sequelize");
 const { Task, User, Project, File } = require("../database/models");
 const { AppError } = require("../utils/AppError");
 const { Document, Whiteboard } = require("../database/models");
+const { ADMIN_ROLES } = require("./auth/workspaceMember");
+const { canAccessTask } = require("./taskAccess.service");
 // ─── Reusable include config ──────────────────────────────────────────────────
 const TASK_INCLUDES = [
   {
@@ -29,6 +31,12 @@ const TASK_INCLUDES = [
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+// Returns { where, andConditions } instead of folding everything into a
+// single `where` object, since both the search filter and the privacy
+// filter (added in getAllTasks) each need their own Op.or clause — and
+// Sequelize can only hold one Op.or per object literal (it's the same
+// Symbol key). Combining them via a shared `andConditions` array (→
+// where[Op.and]) keeps both independently expressible.
 const buildFilters = ({
   state,
   priority,
@@ -39,16 +47,19 @@ const buildFilters = ({
   dueAfter,
 }) => {
   const where = {};
+  const andConditions = [];
 
   if (state) where.state = state;
   if (priority) where.priority = priority;
   if (projectId) where.projectId = projectId;
 
   if (search) {
-    where[Op.or] = [
-      { name: { [Op.iLike]: `%${search}%` } },
-      { description: { [Op.iLike]: `%${search}%` } },
-    ];
+    andConditions.push({
+      [Op.or]: [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+      ],
+    });
   }
 
   if (dueBefore || dueAfter) {
@@ -57,7 +68,7 @@ const buildFilters = ({
     if (dueAfter) where.dueDate[Op.gte] = dueAfter;
   }
 
-  return where;
+  return { where, andConditions };
 };
 
 // ─── Service Methods ──────────────────────────────────────────────────────────
@@ -67,8 +78,19 @@ const getAllTasks = async ({
   filters = {},
   cursor = null, // last task id from previous page
   limit = 5,
+  userId,
+  role,
 }) => {
-  const where = { workspaceId, ...buildFilters(filters) };
+  const { where: filterWhere, andConditions } = buildFilters(filters);
+  const where = { workspaceId, ...filterWhere };
+
+  // Private tasks are visible only to their creator and to admin/owner —
+  // filtered at the query level (not post-fetch) so cursor pagination stays
+  // correct.
+  if (!ADMIN_ROLES.includes(role)) {
+    andConditions.push({ [Op.or]: [{ isPrivate: false }, { createdBy: userId }] });
+  }
+  if (andConditions.length) where[Op.and] = andConditions;
 
   // If cursor provided, only fetch tasks older than it
   if (cursor) {
@@ -106,13 +128,18 @@ const getAllTasks = async ({
   };
 };
 
-const getTaskById = async (taskId, workspaceId) => {
+const getTaskById = async (taskId, workspaceId, { userId, role } = {}) => {
   const task = await Task.findOne({
     where: { id: taskId, workspaceId },
     include: TASK_INCLUDES,
   });
 
   if (!task) throw new AppError("Task not found", 404);
+  // 404 rather than 403 — same obscure-existence convention as the private
+  // project/document/whiteboard checks elsewhere in this codebase.
+  if (!canAccessTask({ task, userId, role })) {
+    throw new AppError("Task not found", 404);
+  }
 
   const taskData = task.toJSON();
 
@@ -157,39 +184,52 @@ const createTask = async ({
     await task.setAssignees(assignees);
   }
 
-  return getTaskById(task.id, workspaceId);
+  // The creator always has access to what they just created, so no
+  // separate role lookup is needed here.
+  return getTaskById(task.id, workspaceId, { userId: createdBy });
 };
-const updateTask = async (taskId, workspaceId, { assigneeIds, ...fields }) => {
+const updateTask = async (
+  taskId,
+  workspaceId,
+  { assigneeIds, ...fields },
+  { userId, role } = {},
+) => {
   const taskInstance = await Task.findOne({
     where: { id: taskId, workspaceId },
   });
 
-  if (!taskInstance) throw new AppError("Task not found", 404);
+  if (!taskInstance || !canAccessTask({ task: taskInstance, userId, role })) {
+    throw new AppError("Task not found", 404);
+  }
   await taskInstance.update(fields);
   if (assigneeIds !== undefined) {
     await taskInstance.setAssignees(assigneeIds);
   }
 
-  // ✅ return enriched response
-  return getTaskById(taskId, workspaceId);
+  // ✅ return enriched response — access already verified above.
+  return getTaskById(taskId, workspaceId, { userId, role });
 };
 
-const deleteTask = async (taskId, workspaceId) => {
+const deleteTask = async (taskId, workspaceId, { userId, role } = {}) => {
   // ✅ fetch raw Sequelize instance
   const taskInstance = await Task.findOne({
     where: { id: taskId, workspaceId },
   });
 
-  if (!taskInstance) throw new AppError("Task not found", 404);
+  if (!taskInstance || !canAccessTask({ task: taskInstance, userId, role })) {
+    throw new AppError("Task not found", 404);
+  }
   await taskInstance.destroy();
 };
 
-const updateChecklist = async (taskId, workspaceId, checklist) => {
+const updateChecklist = async (taskId, workspaceId, checklist, { userId, role } = {}) => {
   const taskInstance = await Task.findOne({
     where: { id: taskId, workspaceId },
   });
 
-  if (!taskInstance) throw new AppError("Task not found", 404);
+  if (!taskInstance || !canAccessTask({ task: taskInstance, userId, role })) {
+    throw new AppError("Task not found", 404);
+  }
   await taskInstance.update({ checklist });
   return taskInstance.checklist;
 };

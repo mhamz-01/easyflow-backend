@@ -12,6 +12,9 @@ function requirePermission(permission) {
       if (!role) {
         return res.status(403).json({ message: "Not a workspace member" });
       }
+      // Additive — lets downstream handlers do resource-level checks (e.g.
+      // task privacy) without a second role lookup.
+      req.workspaceRole = role;
       const permissions = rolePermissions[role] || [];
       if (!permissions.includes(permission) && !permissions.includes("*")) {
         return res.status(403).json({ message: "Forbidden" });

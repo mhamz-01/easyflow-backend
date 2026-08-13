@@ -32,11 +32,15 @@ const createTaskSchema = z.object({
   attachedFilesId: z.array(positiveInt).optional(),
   attachedDocs: z.array(positiveInt).optional().default([]),        // ✅ add
   attachedWhiteboards: z.array(positiveInt).optional().default([]), // ✅ add
+  isPrivate: z.boolean().optional().default(false),
 })
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-const updateTaskSchema = createTaskSchema.partial()
+// isPrivate is set only at creation and excluded here — same convention as
+// documents/whiteboards, where visibility isn't patchable through the
+// generic update route.
+const updateTaskSchema = createTaskSchema.omit({ isPrivate: true }).partial()
 
 // ─── Patch: state ─────────────────────────────────────────────────────────────
 

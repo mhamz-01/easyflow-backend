@@ -31,6 +31,8 @@ const getTasks = async (req, res, next) => {
       },
       cursor: cursor ? parseInt(cursor) : null,
       limit: parseInt(limit) || 20,
+      userId: req.user.id,
+      role: req.workspaceRole,
     });
 
     sendSuccess(res, result);
@@ -48,6 +50,7 @@ const getTask = async (req, res, next) => {
     const task = await taskService.getTaskById(
       parseInt(taskId),
       parseInt(workspaceId),
+      { userId: req.user.id, role: req.workspaceRole },
     );
     sendSuccess(res, task);
   } catch (err) {
@@ -106,6 +109,7 @@ const updateTask = async (req, res, next) => {
       parseInt(taskId),
       parseInt(workspaceId),
       req.body,
+      { userId: req.user.id, role: req.workspaceRole },
     );
 
     sendSuccess(res, task, 200, "Task updated successfully");
@@ -120,7 +124,10 @@ const deleteTask = async (req, res, next) => {
   try {
     const { workspaceId } = req; // ✅ from attachUser middleware
     const { taskId } = req.params; // ✅ from URL
-    await taskService.deleteTask(parseInt(taskId), parseInt(workspaceId));
+    await taskService.deleteTask(parseInt(taskId), parseInt(workspaceId), {
+      userId: req.user.id,
+      role: req.workspaceRole,
+    });
     res.status(204).send();
   } catch (err) {
     next(err);
@@ -137,6 +144,7 @@ const updateChecklist = async (req, res, next) => {
       parseInt(taskId),
       parseInt(workspaceId),
       checklist,
+      { userId: req.user.id, role: req.workspaceRole },
     );
 
     res.json({ checklist: updated });

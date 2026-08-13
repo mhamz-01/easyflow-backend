@@ -1,9 +1,5 @@
 const { DocumentPermission } = require("../database/models");
-
-// Workspace admin/owner always get full edit access on any public document,
-// unconditionally — no per-user override or document default can restrict
-// them. This is intentional: the admin/owner role sits above the ACL.
-const ADMIN_ROLES = ["owner", "admin"];
+const { ADMIN_ROLES } = require("./auth/workspaceMember");
 
 // Resolves what a specific user can do with a public document: admin/owner
 // always wins (unconditional — no override can touch them), then an
