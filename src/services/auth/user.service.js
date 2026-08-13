@@ -3,6 +3,30 @@ const { clerkClient } = require("@clerk/express");
 const r2Client = require("../../config/r2");
 const { User } = require("../../database/models");
 const { NotFoundError } = require("../../utils/AppError");
+
+// attachUserAndWorkspaceId resolves the clerkId → user row on *every*
+// authenticated request. Within a single (warm) server process, that row
+// almost never changes between requests, so cache it briefly instead of
+// round-tripping to the DB each time. Invalidated on write (below) so a
+// profile update via the Clerk webhook is never served stale past that
+// point; the TTL is just a backstop.
+const userCacheByClerkId = new Map(); // clerkId -> { user, expiresAt }
+const USER_CACHE_TTL_MS = 60_000;
+
+const getCachedUserByClerkId = (clerkId) => {
+  const entry = userCacheByClerkId.get(clerkId);
+  if (!entry) return null;
+  if (entry.expiresAt < Date.now()) {
+    userCacheByClerkId.delete(clerkId);
+    return null;
+  }
+  return entry.user;
+};
+
+const setCachedUserByClerkId = (clerkId, user) => {
+  userCacheByClerkId.set(clerkId, { user, expiresAt: Date.now() + USER_CACHE_TTL_MS });
+};
+
 /**
  * Creates or updates a user from Clerk data. Accepts either a raw webhook
  * event payload (snake_case) or a Clerk Backend API user resource
@@ -26,6 +50,8 @@ const handleClerkUserCreated = async (clerkUser) => {
     clerkId: clerkID,
   };
   await User.upsert(payload);
+  // The cached row (if any) is now stale — drop it rather than wait out the TTL.
+  userCacheByClerkId.delete(clerkID);
 };
 
 const getUserName = async (clerkId) => {
@@ -45,16 +71,29 @@ const getUserName = async (clerkId) => {
   return user.username;
 };
 
+// Superset of columns either caller (getUserIdUsingClerkId /
+// getUserProfileUsingClerkId) needs — fetching this fixed set means both
+// can share one cache entry per clerkId instead of caching per attribute
+// combination.
+const CACHEABLE_ATTRIBUTES = ["id", "username", "email", "imageUrl"];
+
 // Shared by getUserIdUsingClerkId / getUserProfileUsingClerkId below so the
-// self-heal fallback only lives in one place — callers just pick which
-// columns they need.
-const findUserByClerkId = async (clerkId, attributes) => {
+// self-heal fallback (and now the cache) only lives in one place — both
+// always fetch CACHEABLE_ATTRIBUTES and pick the columns they need off the
+// result.
+const findUserByClerkId = async (clerkId) => {
   if (!clerkId) {
     throw new Error("ClerkId is required");
   }
+
+  const cached = getCachedUserByClerkId(clerkId);
+  if (cached) {
+    return cached;
+  }
+
   let user = await User.findOne({
     where: { clerkId },
-    attributes,
+    attributes: CACHEABLE_ATTRIBUTES,
   });
 
   if (!user) {
@@ -66,7 +105,7 @@ const findUserByClerkId = async (clerkId, attributes) => {
     const clerkUser = await clerkClient.users.getUser(clerkId).catch(() => null);
     if (clerkUser) {
       await handleClerkUserCreated(clerkUser);
-      user = await User.findOne({ where: { clerkId }, attributes });
+      user = await User.findOne({ where: { clerkId }, attributes: CACHEABLE_ATTRIBUTES });
     }
   }
 
@@ -78,18 +117,19 @@ const findUserByClerkId = async (clerkId, attributes) => {
     throw new NotFoundError("User not found");
   }
 
+  setCachedUserByClerkId(clerkId, user);
   return user;
 };
 
 const getUserIdUsingClerkId = async (clerkId) => {
-  const user = await findUserByClerkId(clerkId, ["id"]);
+  const user = await findUserByClerkId(clerkId);
   return user.id;
 };
 
 // Used by attachUserAndWorkspaceId so routes that need author display info
 // (e.g. chat) don't have to re-fetch the same user row a second time.
 const getUserProfileUsingClerkId = async (clerkId) => {
-  const user = await findUserByClerkId(clerkId, ["id", "username", "email", "imageUrl"]);
+  const user = await findUserByClerkId(clerkId);
   return {
     id: user.id,
     username: user.username,
