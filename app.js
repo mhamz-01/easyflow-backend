@@ -10,6 +10,7 @@ const recentActivitiesRoutes = require("./src/routes/recentActivitiesRoutes.js")
 const filesRoutes = require("./src/routes/filesRoute.js");
 const tasksRoutes = require("./src/routes/tasksRoutes.js");
 const chatRoutes = require("./src/routes/chatRoutes.js");
+const notificationsRoutes = require("./src/routes/notificationsRoutes.js");
 const cronRoutes = require("./src/routes/cronRoutes.js");
 const errorHandler = require("./src/middlewares/errorHandler.js");
 const { clerkMiddleware, requireAuth } = require("@clerk/express");
@@ -65,6 +66,7 @@ app.use("/api/recentActivities", requireAuth(), attachUserAndWorkspaceId, recent
 app.use("/api/files", requireAuth(), attachUserAndWorkspaceId, filesRoutes);
 app.use("/api/projects/:projectId/tasks", requireAuth(), attachUserAndWorkspaceId, tasksRoutes);
 app.use("/api/chat", requireAuth(), attachUserAndWorkspaceId, chatRoutes);
+app.use("/api/notifications", requireAuth(), attachUserAndWorkspaceId, notificationsRoutes);
 
 app.use(errorHandler);
 

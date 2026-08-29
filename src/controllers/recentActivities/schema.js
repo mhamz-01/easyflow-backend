@@ -13,6 +13,7 @@ const createRecentActivityBodySchema = z.object({
 
 const getAllRecentActivitiesSchema = z.object({
   workspaceId: z.string(),
+  projectId: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(50).optional().default(5),
 });
 

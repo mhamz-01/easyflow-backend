@@ -49,10 +49,10 @@ const createRecentActivity = async (req, res) => {
 
 const getAllRecentActivities = async (req, res) => {
   try {
-    const { workspaceId, limit } = getAllRecentActivitiesSchema.parse(req.query);
+    const { workspaceId, projectId, limit } = getAllRecentActivitiesSchema.parse(req.query);
 
     const recentActivities = await RecentActivities.findAll({
-      where: { workspaceId },
+      where: projectId ? { workspaceId, projectID: projectId } : { workspaceId },
       order: [["createdAt", "DESC"]],
       limit,
     });

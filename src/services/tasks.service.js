@@ -4,6 +4,7 @@ const { AppError } = require("../utils/AppError");
 const { Document, Whiteboard } = require("../database/models");
 const { ADMIN_ROLES } = require("./auth/workspaceMember");
 const { canAccessTask } = require("./taskAccess.service");
+const notificationService = require("./notification.service");
 // ─── Reusable include config ──────────────────────────────────────────────────
 const TASK_INCLUDES = [
   {
@@ -182,6 +183,12 @@ const createTask = async ({
 
   if (Array.isArray(assignees) && assignees.length > 0) {
     await task.setAssignees(assignees);
+    await notificationService.notifyTaskEvent({
+      type: "TASK_ASSIGNED",
+      task: { id: task.id, name: task.name, workspaceId: task.workspaceId, projectId: task.projectId },
+      actorUserId: createdBy,
+      recipientUserIds: assignees,
+    });
   }
 
   // The creator always has access to what they just created, so no
@@ -201,9 +208,65 @@ const updateTask = async (
   if (!taskInstance || !canAccessTask({ task: taskInstance, userId, role })) {
     throw new AppError("Task not found", 404);
   }
+
+  // Snapshot before mutating — needed to diff against after .update()/
+  // .setAssignees() so notifications only fire for what actually changed.
+  const previousState = taskInstance.state;
+  const previousDueDate = taskInstance.dueDate;
+  const previousAssigneeIds = (await taskInstance.getAssignees({ attributes: ["id"] })).map(
+    (a) => a.id,
+  );
+
   await taskInstance.update(fields);
+
+  let currentAssigneeIds = previousAssigneeIds;
   if (assigneeIds !== undefined) {
     await taskInstance.setAssignees(assigneeIds);
+    currentAssigneeIds = assigneeIds;
+  }
+
+  const taskRef = {
+    id: taskInstance.id,
+    name: taskInstance.name,
+    workspaceId: taskInstance.workspaceId,
+    projectId: taskInstance.projectId,
+  };
+
+  if (assigneeIds !== undefined) {
+    const newlyAssigned = assigneeIds.filter((id) => !previousAssigneeIds.includes(id));
+    if (newlyAssigned.length > 0) {
+      await notificationService.notifyTaskEvent({
+        type: "TASK_ASSIGNED",
+        task: taskRef,
+        actorUserId: userId,
+        recipientUserIds: newlyAssigned,
+      });
+    }
+  }
+
+  // Status/due-date changes go to whoever's currently assigned plus the
+  // task's creator (the actor is excluded from their own notification
+  // inside notifyTaskEvent regardless of which of these groups they're in).
+  const statusOrDueRecipients = [...currentAssigneeIds, taskInstance.createdBy];
+
+  if (fields.state !== undefined && fields.state !== previousState) {
+    await notificationService.notifyTaskEvent({
+      type: "TASK_STATUS_CHANGED",
+      task: taskRef,
+      actorUserId: userId,
+      recipientUserIds: statusOrDueRecipients,
+      extra: { state: fields.state },
+    });
+  }
+
+  if (fields.dueDate !== undefined && fields.dueDate !== previousDueDate) {
+    await notificationService.notifyTaskEvent({
+      type: "TASK_DUE_CHANGED",
+      task: taskRef,
+      actorUserId: userId,
+      recipientUserIds: statusOrDueRecipients,
+      extra: { dueDate: fields.dueDate },
+    });
   }
 
   // ✅ return enriched response — access already verified above.

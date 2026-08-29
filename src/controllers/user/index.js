@@ -2,6 +2,7 @@ const { clerkClient, getAuth } = require("@clerk/express");
 const { handleClerkUserCreated } = require("../../services/auth/user.service");
 const { clerkUserSchema } = require("../../validators/clerk.validator");
 const { User, Workspace } = require("../../database/models");
+const { sendSuccess } = require("../../utils");
 /**
  * Clerk webhook handler
  * Handles user.created and user.updated events
@@ -74,7 +75,16 @@ const deleteUser = async (req, res) => {
   }
 };
 
+// ─── GET /api/users/me ────────────────────────────────────────────────────────
+// req.user is already resolved by attachUserAndWorkspaceId — this just
+// exposes it. Used client-side to get the current user's internal (numeric)
+// id, e.g. to build a per-user realtime notification topic.
+const getMe = (req, res) => {
+  sendSuccess(res, req.user);
+};
+
 module.exports = {
   createUser,
   deleteUser,
+  getMe,
 };
