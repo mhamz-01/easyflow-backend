@@ -2,8 +2,15 @@ const express = require("express");
 const { validate } = require("../middlewares/validate");
 const { requirePermission } = require("../middlewares/requirePermission");
 const { requireChatChannelAccess } = require("../middlewares/requireChatChannelAccess");
+const { requireProjectAccess } = require("../middlewares/requireProjectAccess");
 const { sendMessageSchema, markReadSchema } = require("../controllers/chat/schema");
 const { sendMessage, listMessages, deleteMessage, markRead, getUnread } = require("../controllers/chat");
+const {
+  getChannels,
+  createChannel,
+  renameChannel,
+  deleteChannel,
+} = require("../controllers/chat/channels");
 const { CHAT_API } = require("../constants/chat.api");
 
 const router = express.Router();
@@ -49,6 +56,32 @@ router.get(
   CHAT_API.GET_UNREAD,
   requirePermission("chat:read"),
   getUnread,
+);
+
+// ─── Sub-channels ───────────────────────────────────────────────────────────────
+router.get(
+  CHAT_API.LIST_CHANNELS,
+  requirePermission("chat:read"),
+  requireProjectAccess(),
+  getChannels,
+);
+router.post(
+  CHAT_API.CREATE_CHANNEL,
+  requirePermission("chat:manage-channels"),
+  requireProjectAccess(),
+  createChannel,
+);
+router.patch(
+  CHAT_API.RENAME_CHANNEL,
+  requirePermission("chat:manage-channels"),
+  requireProjectAccess(),
+  renameChannel,
+);
+router.delete(
+  CHAT_API.DELETE_CHANNEL,
+  requirePermission("chat:manage-channels"),
+  requireProjectAccess(),
+  deleteChannel,
 );
 
 module.exports = router;

@@ -2,6 +2,7 @@ const { getAuth } = require("@clerk/express");
 const { Whiteboard } = require("../database/models");
 const { findWorkspaceMemberRole } = require("../services/auth/workspaceMember");
 const { resolveWhiteboardAccess } = require("../services/whiteboardAccess.service");
+const { assertProjectAccess } = require("../services/project.services");
 
 // id can arrive as a route param (:id), a query param (GET/DELETE), or a
 // body field (PUT/PATCH) depending on which whiteboards route this runs on.
@@ -24,21 +25,31 @@ const requireWhiteboardAccess = (requiredLevel) => async (req, res, next) => {
     }
 
     const whiteboard = await Whiteboard.findByPk(whiteboardId, {
-      attributes: ["id", "workspaceId", "isPrivate", "defaultAccess", "createdBy"],
+      attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"],
     });
 
     if (!whiteboard || whiteboard.workspaceId !== req.workspaceId) {
       return res.status(404).json({ success: false, message: "Whiteboard not found" });
     }
 
-    if (whiteboard.isPrivate) {
-      return next();
-    }
-
     const { userId: clerkId } = getAuth(req);
     const role = await findWorkspaceMemberRole(clerkId, req.workspaceId);
     if (!role) {
       return res.status(403).json({ success: false, message: "Not a workspace member" });
+    }
+
+    const canAccessProject = await assertProjectAccess({
+      projectId: whiteboard.projectId,
+      workspaceId: req.workspaceId,
+      userId: req.user.id,
+      workspaceRole: role,
+    });
+    if (!canAccessProject) {
+      return res.status(404).json({ success: false, message: "Whiteboard not found" });
+    }
+
+    if (whiteboard.isPrivate) {
+      return next();
     }
 
     const access = await resolveWhiteboardAccess({ whiteboard, userId: req.user.id, role });

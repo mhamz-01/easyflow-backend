@@ -7,11 +7,12 @@ const { getMessagesQuerySchema } = require("./schema");
 const sendMessage = async (req, res, next) => {
   try {
     const { workspaceId } = req;
-    const { projectId, content, attachment } = req.body;
+    const { projectId, channelId, content, attachment } = req.body;
 
     const message = await chatService.createMessage({
       workspaceId,
       projectId,
+      channelId,
       author: req.user,
       content,
       attachment,
@@ -26,9 +27,9 @@ const sendMessage = async (req, res, next) => {
 const listMessages = async (req, res, next) => {
   try {
     const { workspaceId } = req;
-    const { projectId, cursor, limit } = getMessagesQuerySchema.parse(req.query);
+    const { projectId, channelId, cursor, limit } = getMessagesQuerySchema.parse(req.query);
 
-    const result = await chatService.getMessages({ workspaceId, projectId, cursor, limit });
+    const result = await chatService.getMessages({ workspaceId, projectId, channelId, cursor, limit });
     sendSuccess(res, result);
   } catch (err) {
     next(err);
@@ -61,12 +62,13 @@ const deleteMessage = async (req, res, next) => {
 const markRead = async (req, res, next) => {
   try {
     const { workspaceId } = req;
-    const { projectId, lastMessageId } = req.body;
+    const { projectId, channelId, lastMessageId } = req.body;
 
     const result = await chatService.markChannelRead({
       userId: req.user.id,
       workspaceId,
       projectId: projectId ?? null,
+      channelId: channelId ?? null,
       lastMessageId,
     });
     sendSuccess(res, result);

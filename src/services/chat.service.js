@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const { ChatMessage, ChatReadState, User } = require("../database/models");
+const { ChatMessage, ChatReadState, ChatChannel, User } = require("../database/models");
 const { AppError } = require("../utils/AppError");
 const { getProjectsForSidebar } = require("./project.services");
 
@@ -30,12 +30,20 @@ const assertNotRateLimited = async (workspaceId, userId) => {
 // attachUserAndWorkspaceId — reused here instead of a second author lookup
 // (findByPk + join) after the insert. `projectId` null = General channel.
 // Rate limiting stays workspace-wide (not per-channel) on purpose.
-const createMessage = async ({ workspaceId, projectId = null, author, content, attachment }) => {
+const createMessage = async ({
+  workspaceId,
+  projectId = null,
+  channelId = null,
+  author,
+  content,
+  attachment,
+}) => {
   await assertNotRateLimited(workspaceId, author.id);
 
   const message = await ChatMessage.create({
     workspaceId,
     projectId,
+    channelId,
     userId: author.id,
     content: content ?? null,
     attachment: attachment ?? null,
@@ -45,6 +53,7 @@ const createMessage = async ({ workspaceId, projectId = null, author, content, a
     id: message.id,
     workspaceId: message.workspaceId,
     projectId: message.projectId,
+    channelId: message.channelId,
     userId: message.userId,
     content: message.content,
     attachment: message.attachment,
@@ -56,8 +65,14 @@ const createMessage = async ({ workspaceId, projectId = null, author, content, a
 };
 
 // ─── Read (cursor-paginated, newest page first) ─────────────────────────────────
-const getMessages = async ({ workspaceId, projectId = null, cursor = null, limit = 30 }) => {
-  const where = { workspaceId, projectId };
+const getMessages = async ({
+  workspaceId,
+  projectId = null,
+  channelId = null,
+  cursor = null,
+  limit = 30,
+}) => {
+  const where = { workspaceId, projectId, channelId };
   if (cursor) {
     where.id = { [Op.lt]: cursor }; // older than the last message the client has
   }
@@ -94,10 +109,10 @@ const deleteMessage = async ({ workspaceId, messageId, userId }) => {
     throw new AppError("You can only delete your own messages", 403);
   }
 
-  const { id, projectId } = message;
+  const { id, projectId, channelId } = message;
   await message.destroy();
 
-  return { id, projectId };
+  return { id, projectId, channelId };
 };
 
 // ─── Read cursor (per user, per channel) ─────────────────────────────────────
@@ -109,15 +124,21 @@ const deleteMessage = async ({ workspaceId, messageId, userId }) => {
 // loaded yet). The cursor only ever moves forward — never regresses from a
 // stale/out-of-order call — since a lower incoming id just means "I already
 // know about something newer."
-const markChannelRead = async ({ userId, workspaceId, projectId = null, lastMessageId }) => {
+const markChannelRead = async ({
+  userId,
+  workspaceId,
+  projectId = null,
+  channelId = null,
+  lastMessageId,
+}) => {
   let targetId = lastMessageId ?? null;
 
   if (targetId == null) {
-    targetId = await ChatMessage.max("id", { where: { workspaceId, projectId } });
+    targetId = await ChatMessage.max("id", { where: { workspaceId, projectId, channelId } });
   }
 
   const [state] = await ChatReadState.findOrCreate({
-    where: { userId, workspaceId, projectId },
+    where: { userId, workspaceId, projectId, channelId },
     defaults: { lastReadMessageId: targetId ?? null },
   });
 
@@ -126,7 +147,7 @@ const markChannelRead = async ({ userId, workspaceId, projectId = null, lastMess
     await state.save();
   }
 
-  return { projectId, lastReadMessageId: state.lastReadMessageId };
+  return { projectId, channelId, lastReadMessageId: state.lastReadMessageId };
 };
 
 // ─── Unread summary (sidebar + channel-rail badges) ──────────────────────────
@@ -139,40 +160,128 @@ const markChannelRead = async ({ userId, workspaceId, projectId = null, lastMess
 // latest message id is higher than this user's read cursor for it — no
 // cursor at all (never opened) counts as unread if the channel has any
 // messages.
+// Composite (projectId, channelId) key — both can independently be null, so
+// a plain Map keyed on one field alone can't disambiguate a project's main
+// channel from one of its sub-channels.
+const channelKey = (projectId, channelId) => `${projectId ?? "null"}:${channelId ?? "null"}`;
+
 const getUnreadSummary = async ({ userId, workspaceId }) => {
   const projects = await getProjectsForSidebar(workspaceId, userId);
   const projectIds = projects.map((p) => p.id);
-  const channelIds = [null, ...projectIds];
+
+  // A sub-channel's visibility is exactly its parent project's — already
+  // gated by getProjectsForSidebar above, no extra check needed here.
+  const subChannels = projectIds.length
+    ? await ChatChannel.findAll({
+        where: { projectId: { [Op.in]: projectIds } },
+        attributes: ["id", "projectId"],
+        raw: true,
+      })
+    : [];
+  const subChannelIds = subChannels.map((c) => c.id);
+
+  const channels = [
+    { projectId: null, channelId: null },
+    ...projectIds.map((projectId) => ({ projectId, channelId: null })),
+    ...subChannels.map((c) => ({ projectId: c.projectId, channelId: c.id })),
+  ];
 
   const sequelize = ChatMessage.sequelize;
   const channelWhere = {
     workspaceId,
-    [Op.or]: [{ projectId: null }, { projectId: { [Op.in]: projectIds } }],
+    [Op.or]: [
+      { projectId: null },
+      { projectId: { [Op.in]: projectIds }, channelId: null },
+      { channelId: { [Op.in]: subChannelIds } },
+    ],
   };
 
   const [latestRows, readRows] = await Promise.all([
     ChatMessage.findAll({
-      attributes: ["projectId", [sequelize.fn("MAX", sequelize.col("id")), "latestId"]],
+      attributes: ["projectId", "channelId", [sequelize.fn("MAX", sequelize.col("id")), "latestId"]],
       where: channelWhere,
-      group: ["projectId"],
+      group: ["projectId", "channelId"],
       raw: true,
     }),
     ChatReadState.findAll({
       where: { userId, workspaceId },
-      attributes: ["projectId", "lastReadMessageId"],
+      attributes: ["projectId", "channelId", "lastReadMessageId"],
       raw: true,
     }),
   ]);
 
-  const latestByChannel = new Map(latestRows.map((r) => [r.projectId, Number(r.latestId)]));
-  const readByChannel = new Map(readRows.map((r) => [r.projectId, r.lastReadMessageId]));
+  const latestByChannel = new Map(
+    latestRows.map((r) => [channelKey(r.projectId, r.channelId), Number(r.latestId)]),
+  );
+  const readByChannel = new Map(
+    readRows.map((r) => [channelKey(r.projectId, r.channelId), r.lastReadMessageId]),
+  );
 
-  return channelIds.map((projectId) => {
-    const latestId = latestByChannel.get(projectId) ?? null;
-    const lastReadId = readByChannel.get(projectId) ?? null;
+  return channels.map(({ projectId, channelId }) => {
+    const key = channelKey(projectId, channelId);
+    const latestId = latestByChannel.get(key) ?? null;
+    const lastReadId = readByChannel.get(key) ?? null;
     const unread = latestId != null && (lastReadId == null || lastReadId < latestId);
-    return { projectId, unread };
+    return { projectId, channelId, unread };
   });
 };
 
-module.exports = { createMessage, getMessages, deleteMessage, markChannelRead, getUnreadSummary };
+// ─── Sub-channel management (admin/owner only — enforced at the route layer) ────
+// A channel's visibility is exactly its parent project's, so listing needs no
+// extra filtering beyond "does this project exist" — the route already ran
+// requireProjectAccess before reaching here.
+const listChannels = async (projectId) => {
+  return ChatChannel.findAll({
+    where: { projectId },
+    order: [["createdAt", "ASC"]],
+  });
+};
+
+const createChannel = async ({ projectId, name, createdBy }) => {
+  const existing = await ChatChannel.findOne({ where: { projectId, name } });
+  if (existing) {
+    throw new AppError("A channel with that name already exists in this project", 409);
+  }
+
+  return ChatChannel.create({ projectId, name, createdBy });
+};
+
+const renameChannel = async ({ projectId, channelId, name }) => {
+  const channel = await ChatChannel.findOne({ where: { id: channelId, projectId } });
+  if (!channel) {
+    throw new AppError("Channel not found", 404);
+  }
+
+  const existing = await ChatChannel.findOne({
+    where: { projectId, name, id: { [Op.ne]: channelId } },
+  });
+  if (existing) {
+    throw new AppError("A channel with that name already exists in this project", 409);
+  }
+
+  channel.name = name;
+  await channel.save();
+  return channel;
+};
+
+// Hard delete — cascades away the channel's messages and read-cursors (FK
+// ON DELETE CASCADE), same as deleting a Project already cascades away its
+// ChatMessages today. Not a new class of behavior for this codebase.
+const deleteChannel = async ({ projectId, channelId }) => {
+  const deleted = await ChatChannel.destroy({ where: { id: channelId, projectId } });
+  if (!deleted) {
+    throw new AppError("Channel not found", 404);
+  }
+};
+
+module.exports = {
+  createMessage,
+  getMessages,
+  deleteMessage,
+  markChannelRead,
+  getUnreadSummary,
+  listChannels,
+  createChannel,
+  renameChannel,
+  deleteChannel,
+};

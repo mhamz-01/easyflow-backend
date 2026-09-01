@@ -19,6 +19,13 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
+      // null = General (if projectId is also null) or the project's own
+      // default/main channel (if projectId is set) — same convention as
+      // projectId itself. Set = a named sub-channel within that project.
+      channelId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       userId: {
         type: DataTypes.INTEGER,
         allowNull: false,
@@ -49,6 +56,7 @@ module.exports = (sequelize) => {
       indexes: [
         { fields: ["workspaceId", "userId", "createdAt"] },
         { fields: ["workspaceId", "projectId", "id"] },
+        { fields: ["channelId", "id"] },
       ],
     },
   );
@@ -61,6 +69,10 @@ module.exports = (sequelize) => {
     ChatMessage.belongsTo(models.Project, {
       foreignKey: "projectId",
       as: "project",
+    });
+    ChatMessage.belongsTo(models.ChatChannel, {
+      foreignKey: "channelId",
+      as: "channel",
     });
     ChatMessage.belongsTo(models.User, {
       foreignKey: "userId",

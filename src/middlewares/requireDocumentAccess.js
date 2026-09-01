@@ -2,6 +2,7 @@ const { getAuth } = require("@clerk/express");
 const { Document } = require("../database/models");
 const { findWorkspaceMemberRole } = require("../services/auth/workspaceMember");
 const { resolveDocumentAccess } = require("../services/documentAccess.service");
+const { assertProjectAccess } = require("../services/project.services");
 
 // id can arrive as a route param (:id), a query param (GET/DELETE), or a
 // body field (PUT/PATCH) depending on which docs route this runs on.
@@ -24,21 +25,34 @@ const requireDocumentAccess = (requiredLevel) => async (req, res, next) => {
     }
 
     const document = await Document.findByPk(docId, {
-      attributes: ["id", "workspaceId", "isPrivate", "defaultAccess", "createdBy"],
+      attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"],
     });
 
     if (!document || document.workspaceId !== req.workspaceId) {
       return res.status(404).json({ success: false, message: "Document not found" });
     }
 
-    if (document.isPrivate) {
-      return next();
-    }
-
     const { userId: clerkId } = getAuth(req);
     const role = await findWorkspaceMemberRole(clerkId, req.workspaceId);
     if (!role) {
       return res.status(403).json({ success: false, message: "Not a workspace member" });
+    }
+
+    // Gate on the document's project before anything document-specific — a
+    // private-project non-member gets no access to any document inside it,
+    // regardless of the document's own isPrivate/defaultAccess settings.
+    const canAccessProject = await assertProjectAccess({
+      projectId: document.projectId,
+      workspaceId: req.workspaceId,
+      userId: req.user.id,
+      workspaceRole: role,
+    });
+    if (!canAccessProject) {
+      return res.status(404).json({ success: false, message: "Document not found" });
+    }
+
+    if (document.isPrivate) {
+      return next();
     }
 
     const access = await resolveDocumentAccess({ document, userId: req.user.id, role });

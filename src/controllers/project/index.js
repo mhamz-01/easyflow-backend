@@ -1,5 +1,11 @@
+const { z } = require("zod");
 const { Workspace, Project } = require("../../database/models");
 const { createProjectSchema } = require("./schemas");
+
+const updateProjectSchema = z.object({
+  type: z.enum(["public", "private"]).optional(),
+  name: z.string().min(1).optional(),
+});
 const { getWorkspaceBySlug } = require("../../services/workspace.services");
 const { getProjectsForSidebar } = require("../../services/project.services");
 
@@ -10,13 +16,15 @@ const createProject = async (req, res) => {
   try {
     // Validate incoming data
     const validatedData = createProjectSchema.parse(req.body);
-    console.log("validatedData", validatedData);
-    // Create project in DB
+    // workspaceId always comes from the authenticated request context, never
+    // trusted from the body — otherwise a caller authorized for one
+    // workspace (via the x-workspace-id header requirePermission checked)
+    // could create a project inside a different workspace by just naming a
+    // different id in the JSON payload.
     const newProject = await Project.create({
       name: validatedData.projectName,
-      workspaceId: validatedData.workspaceId,
+      workspaceId: req.workspaceId,
       admin: validatedData.admin,
-      members: validatedData.members || "",
       lead: validatedData.lead || "",
     });
 
@@ -69,7 +77,7 @@ const getProjectsByWorkspaceSlug = async (req, res) => {
       });
     }
 
-    const projects = await getProjectsForSidebar(workspace.id, userId);
+    const projects = await getProjectsForSidebar(workspace.id, userId, req.workspaceRole);
 
     return res.status(200).json({
       success: true,
@@ -98,7 +106,12 @@ const deleteProject = async (req, res) => {
         .json({ success: false, message: "Project ID is required" });
     }
 
-    const deleted = await Project.destroy({ where: { id: projectId } });
+    // Scoped to req.workspaceId so a caller authorized for one workspace
+    // can't delete a project belonging to a different one just by knowing
+    // its id.
+    const deleted = await Project.destroy({
+      where: { id: projectId, workspaceId: req.workspaceId },
+    });
 
     if (!deleted) {
       return res
@@ -116,8 +129,50 @@ const deleteProject = async (req, res) => {
       .json({ success: false, message: "Internal server error" });
   }
 };
+/**
+ * PATCH /project/:projectId
+ * Currently only exposes flipping public <-> private (and renaming) —
+ * this is the control an admin needs before the "Members" UI means
+ * anything, since a brand new project is always created public.
+ */
+const updateProject = async (req, res) => {
+  try {
+    const projectId = Number(req.params.projectId);
+    if (!projectId) {
+      return res.status(400).json({ success: false, message: "Project ID is required" });
+    }
+
+    const updates = updateProjectSchema.parse(req.body);
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: "No changes provided" });
+    }
+
+    // Scoped to req.workspaceId, same reasoning as deleteProject.
+    const [updatedCount] = await Project.update(updates, {
+      where: { id: projectId, workspaceId: req.workspaceId },
+    });
+
+    if (!updatedCount) {
+      return res.status(404).json({ success: false, message: "Project not found" });
+    }
+
+    const project = await Project.findByPk(projectId, {
+      attributes: ["id", "name", "type"],
+    });
+
+    return res.status(200).json({ success: true, project });
+  } catch (error) {
+    if (error.name === "ZodError") {
+      return res.status(400).json({ success: false, message: "Invalid input", errors: error.errors });
+    }
+    console.error("[updateProject]", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
 module.exports = {
   getProjectsByWorkspaceSlug,
   createProject,
+  updateProject,
   deleteProject,
 };

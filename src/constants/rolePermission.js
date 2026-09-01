@@ -5,14 +5,17 @@ const rolePermissions = {
     "workspace:update",
     "workspace:delete",
     "project:create",
+    "project:read",
     "project:update",
     "project:delete",
+    "project:manage-members",
     "task:read",
     "task:create",
     "task:update",
     "task:delete",
     "chat:read",
     "chat:post",
+    "chat:manage-channels",
     "notification:read",
     "invite:manage",
     "document:manage-access",
@@ -20,6 +23,7 @@ const rolePermissions = {
   ],
 
   member: [
+    "project:read",
     "task:read",
     "task:create",
     "task:update",
@@ -30,7 +34,7 @@ const rolePermissions = {
 
   // Any workspace member — including viewers — can participate in workspace chat
   // and read their own notifications.
-  viewer: ["task:read", "chat:read", "chat:post", "notification:read"],
+  viewer: ["project:read", "task:read", "chat:read", "chat:post", "notification:read"],
 };
 
 module.exports = {

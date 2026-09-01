@@ -11,9 +11,12 @@ const attachmentSchema = z.object({
 });
 
 // projectId absent => General channel; present => that project's channel.
+// channelId present => a named sub-channel within that project (requires
+// projectId — a sub-channel of General doesn't exist).
 const sendMessageSchema = z
   .object({
     projectId: z.coerce.number().int().positive().optional(),
+    channelId: z.coerce.number().int().positive().optional(),
     content: z.string().trim().max(2000).optional(),
     attachment: attachmentSchema.optional(),
   })
@@ -24,6 +27,7 @@ const sendMessageSchema = z
 
 const getMessagesQuerySchema = z.object({
   projectId: z.coerce.number().int().positive().optional(),
+  channelId: z.coerce.number().int().positive().optional(),
   cursor: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -33,7 +37,16 @@ const getMessagesQuerySchema = z.object({
 // (avoids an extra lookup); server falls back to computing it when absent.
 const markReadSchema = z.object({
   projectId: z.coerce.number().int().positive().optional(),
+  channelId: z.coerce.number().int().positive().optional(),
   lastMessageId: z.coerce.number().int().positive().optional(),
+});
+
+const createChannelSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+const renameChannelSchema = z.object({
+  name: z.string().trim().min(1).max(80),
 });
 
 module.exports = {
@@ -41,4 +54,6 @@ module.exports = {
   sendMessageSchema,
   getMessagesQuerySchema,
   markReadSchema,
+  createChannelSchema,
+  renameChannelSchema,
 };

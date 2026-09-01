@@ -23,6 +23,12 @@ module.exports = (sequelize) => {
         type: DataTypes.INTEGER,
         allowNull: true,
       },
+      // null = General or the project's own main channel (matches
+      // chatMessages.channelId's convention); set = a sub-channel.
+      channelId: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+      },
       // Highest chatMessages.id this user has seen in this channel. Not an
       // FK on purpose — see migration comment.
       lastReadMessageId: {
@@ -53,6 +59,10 @@ module.exports = (sequelize) => {
     ChatReadState.belongsTo(models.Project, {
       foreignKey: "projectId",
       as: "project",
+    });
+    ChatReadState.belongsTo(models.ChatChannel, {
+      foreignKey: "channelId",
+      as: "channel",
     });
   };
 
