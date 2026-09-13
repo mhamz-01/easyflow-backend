@@ -53,7 +53,9 @@ app.use("/api/cron", cronRoutes);
 app.use(cors({ origin: process.env.ORIGIN, credentials: true }));
 app.use(clerkMiddleware());
 app.use(cookieParser());
-app.use(express.json());
+// Default express.json() limit is 100kb, which is too small for long doc-editor
+// content. Raised to 5mb — still bounded, to avoid an unbounded-body DoS vector.
+app.use(express.json({ limit: "5mb" }));
 
 // ✅ Routes
 app.use("/api/users", requireAuth(), attachUserAndWorkspaceId, userRoutes);
