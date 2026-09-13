@@ -1,4 +1,4 @@
-const { RecentActivities , User, Project } = require("../../database/models");
+const { RecentActivities } = require("../../database/models");
 const {
   createRecentActivityBodySchema,
   getAllRecentActivitiesSchema,
@@ -51,41 +51,25 @@ const getAllRecentActivities = async (req, res) => {
   try {
     const { workspaceId, projectId, limit } = getAllRecentActivitiesSchema.parse(req.query);
 
+    // Single query with LEFT JOINs instead of the list fetch plus two
+    // batched follow-up lookups (was already fixed once from an N+1 to this
+    // 3-query batch — the editor/project joins below collapse it to 1).
     const recentActivities = await RecentActivities.findAll({
       where: projectId ? { workspaceId, projectID: projectId } : { workspaceId },
+      include: [
+        { association: "editor", attributes: ["username", "imageUrl"] },
+        { association: "project", attributes: ["name"] },
+      ],
       order: [["createdAt", "DESC"]],
       limit,
     });
 
-    // Batch the per-row lookups instead of firing 2 queries per activity
-    // (was an N+1: 1 + 2*limit round trips for a list this small).
-    const editorClerkIds = [...new Set(recentActivities.map((a) => a.lastEditedBy).filter(Boolean))];
-    const projectIds = [...new Set(recentActivities.map((a) => a.projectID).filter(Boolean))];
-
-    const [editors, projects] = await Promise.all([
-      editorClerkIds.length
-        ? User.findAll({
-            where: { clerkId: editorClerkIds },
-            attributes: ["clerkId", "username", "imageUrl"],
-          })
-        : [],
-      projectIds.length
-        ? Project.findAll({
-            where: { id: projectIds },
-            attributes: ["id", "name"],
-          })
-        : [],
-    ]);
-
-    const editorByClerkId = new Map(editors.map((e) => [e.clerkId, e]));
-    const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
-
     const data = recentActivities.map((activity) => {
-      const editor = editorByClerkId.get(activity.lastEditedBy);
+      const { editor, project, ...rest } = activity.toJSON();
       return {
-        ...activity.toJSON(),
+        ...rest,
         editor: editor ? { username: editor.username, imageUrl: editor.imageUrl } : null,
-        projectName: projectNameById.get(activity.projectID) ?? null,
+        projectName: project?.name ?? null,
       };
     });
 

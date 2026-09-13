@@ -12,6 +12,17 @@ module.exports = (sequelize, DataTypes) => {
       RecentActivities.belongsTo(models.Workspace, {
         foreignKey: "workspaceId",
       });
+      RecentActivities.belongsTo(models.Project, {
+        foreignKey: "projectID",
+        as: "project",
+      });
+      // lastEditedBy stores a Clerk id (string), not the User PK, so this
+      // join keys off User.clerkId (unique) instead of the default User.id.
+      RecentActivities.belongsTo(models.User, {
+        foreignKey: "lastEditedBy",
+        targetKey: "clerkId",
+        as: "editor",
+      });
     }
   }
   RecentActivities.init(

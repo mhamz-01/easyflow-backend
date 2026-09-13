@@ -26,6 +26,14 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "projectId",
         onDelete: "CASCADE",
       });
+      // Aliased to avoid colliding with the "PrivateProjectMembers" alias
+      // the belongsToMany(User, { through: "PrivateProjectMembers" }) below
+      // already registers internally for the join table.
+      Project.hasMany(models.PrivateProjectMember, {
+        foreignKey: "projectId",
+        as: "privateMembers",
+        onDelete: "CASCADE",
+      });
       Project.belongsToMany(models.User, {
         through: "PrivateProjectMembers",
         foreignKey: "projectId",

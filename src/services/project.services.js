@@ -16,14 +16,13 @@ const getProjectsForSidebar = async (workspaceId, userId, workspaceRole = null) 
     });
   }
 
-  const privateProjectIds = await PrivateProjectMember.findAll({
-    where: { userId, status: "active" },
-    attributes: ["projectId"],
-    raw: true,
-  });
-
-  const projectIds = privateProjectIds.map((p) => p.projectId);
-
+  // Single LEFT JOIN instead of a PrivateProjectMember.findAll followed by a
+  // separate Project.findAll(Op.in): a project is visible if it's public, or
+  // if the caller has an active PrivateProjectMember row for it. The
+  // (projectId, userId) pair is unique, so this join can match at most one
+  // PrivateProjectMember row per project for this userId — the de-dupe below
+  // is just a safety net against a project whose `type` is stale/inconsistent
+  // with its membership rows, not something this query normally produces.
   const projects = await Project.findAll({
     where: {
       workspaceId,
@@ -31,17 +30,28 @@ const getProjectsForSidebar = async (workspaceId, userId, workspaceRole = null) 
         { type: "public" },
         {
           type: "private",
-          id: {
-            [Op.in]: projectIds,
-          },
+          "$privateMembers.userId$": userId,
+          "$privateMembers.status$": "active",
         },
       ],
     },
+    include: [
+      {
+        association: "privateMembers",
+        attributes: [],
+        required: false,
+      },
+    ],
     attributes: ["id", "name", "type"],
     order: [["createdAt", "ASC"]],
   });
 
-  return projects;
+  const seenIds = new Set();
+  return projects.filter((p) => {
+    if (seenIds.has(p.id)) return false;
+    seenIds.add(p.id);
+    return true;
+  });
 };
 
 // Guards a project-scoped resource: public projects are open to any
