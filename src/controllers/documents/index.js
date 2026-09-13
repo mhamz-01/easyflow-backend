@@ -15,17 +15,9 @@ const { filterDocsByAccess, ADMIN_ROLES } = require("../../services/documentAcce
 
 
 const getSingleDoc = async (req, res) => {
-  // validate query
-  const { id } = validateId.parse(req.query);
-  // get document
-  const document = await Document.findByPk(id);
-  // if document does not exist
-  if (!document) {
-    return res.status(404).json({
-      success: false,
-      message: "Document does not exist",
-    });
-  }
+  // requireDocumentAccess({ fullRow: true }) already loaded this exact row
+  // to run the access check — reuse it instead of querying again.
+  const document = req.document;
   // send document in response — access is resolved by requireDocumentAccess
   // for public docs; private docs are unaffected by this feature, so they
   // keep behaving exactly as before (always fully editable by anyone who can

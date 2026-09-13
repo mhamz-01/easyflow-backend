@@ -19,7 +19,7 @@ const router = express.Router();
 
 // GET Method
 router.get("/", getAllWhiteboards);
-router.get("/single", requireWhiteboardAccess("view"), getSingleWhiteboard);
+router.get("/single", requireWhiteboardAccess("view", { fullRow: true }), getSingleWhiteboard);
 
 // POST Method
 router.post("/create", createWhiteboard);

@@ -17,16 +17,24 @@ const extractDocId = (req) => {
 // change. For public documents: workspace admin/owner always get "edit";
 // everyone else is resolved against an admin-granted per-user override,
 // falling back to the document's own default access level.
-const requireDocumentAccess = (requiredLevel) => async (req, res, next) => {
+// fullRow: true fetches every column instead of the trimmed access-check
+// set, for routes whose controller needs the whole row (e.g. GET /single,
+// which used to re-run Document.findByPk itself right after this middleware
+// already loaded it). Stashed on req.document either way so a controller
+// that only needs what's already here never has to query again.
+const requireDocumentAccess = (requiredLevel, { fullRow = false } = {}) => async (req, res, next) => {
   try {
     const docId = extractDocId(req);
     if (docId === undefined || Number.isNaN(docId)) {
       return res.status(400).json({ success: false, message: "Document id is required" });
     }
 
-    const document = await Document.findByPk(docId, {
-      attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"],
-    });
+    const document = await Document.findByPk(
+      docId,
+      fullRow
+        ? undefined
+        : { attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"] },
+    );
 
     if (!document || document.workspaceId !== req.workspaceId) {
       return res.status(404).json({ success: false, message: "Document not found" });
@@ -50,6 +58,8 @@ const requireDocumentAccess = (requiredLevel) => async (req, res, next) => {
     if (!canAccessProject) {
       return res.status(404).json({ success: false, message: "Document not found" });
     }
+
+    req.document = document;
 
     if (document.isPrivate) {
       return next();

@@ -14,14 +14,9 @@ const {
 
 
   const getSingleWhiteboard = async (req, res) => {
-    const { id } = validateId.parse(req.query);
-    const whiteboard = await Whiteboard.findByPk(id);
-    if (!whiteboard) {
-      return res.status(404).json({
-        success: false,
-        message: "Whiteboard does not exist",
-      });
-    }
+    // requireWhiteboardAccess({ fullRow: true }) already loaded this exact
+    // row to run the access check — reuse it instead of querying again.
+    const whiteboard = req.whiteboard;
     // send whiteboard in response — access is resolved by
     // requireWhiteboardAccess for public whiteboards; private whiteboards
     // are unaffected by this feature, so they keep behaving exactly as

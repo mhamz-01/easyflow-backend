@@ -17,16 +17,24 @@ const extractWhiteboardId = (req) => {
 // change. For public whiteboards: workspace admin/owner always get "edit";
 // everyone else is resolved against an admin-granted per-user override,
 // falling back to the whiteboard's own default access level.
-const requireWhiteboardAccess = (requiredLevel) => async (req, res, next) => {
+// fullRow: true fetches every column instead of the trimmed access-check
+// set, for routes whose controller needs the whole row (e.g. GET /single,
+// which used to re-run Whiteboard.findByPk itself right after this
+// middleware already loaded it). Stashed on req.whiteboard either way so a
+// controller that only needs what's already here never has to query again.
+const requireWhiteboardAccess = (requiredLevel, { fullRow = false } = {}) => async (req, res, next) => {
   try {
     const whiteboardId = extractWhiteboardId(req);
     if (whiteboardId === undefined || Number.isNaN(whiteboardId)) {
       return res.status(400).json({ success: false, message: "Whiteboard id is required" });
     }
 
-    const whiteboard = await Whiteboard.findByPk(whiteboardId, {
-      attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"],
-    });
+    const whiteboard = await Whiteboard.findByPk(
+      whiteboardId,
+      fullRow
+        ? undefined
+        : { attributes: ["id", "workspaceId", "projectId", "isPrivate", "defaultAccess", "createdBy"] },
+    );
 
     if (!whiteboard || whiteboard.workspaceId !== req.workspaceId) {
       return res.status(404).json({ success: false, message: "Whiteboard not found" });
@@ -47,6 +55,8 @@ const requireWhiteboardAccess = (requiredLevel) => async (req, res, next) => {
     if (!canAccessProject) {
       return res.status(404).json({ success: false, message: "Whiteboard not found" });
     }
+
+    req.whiteboard = whiteboard;
 
     if (whiteboard.isPrivate) {
       return next();

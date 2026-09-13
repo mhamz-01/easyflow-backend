@@ -19,7 +19,7 @@ const router = express.Router();
 
 // GET Method
 router.get("/", getAllDocs);
-router.get("/single", requireDocumentAccess("view"), getSingleDoc);
+router.get("/single", requireDocumentAccess("view", { fullRow: true }), getSingleDoc);
 
 // POST Method
 router.post("/create", createDoc);
